@@ -1,0 +1,26 @@
+# Links: which Home Assistant entity each object in the house is.
+# Left side = object id from house.yaml, right side = entity_id.
+# Real mode shows the real state of these entities; simulated mode carries on
+# from it and fakes any entity that doesn't exist in Home Assistant.
+
+# Real entities
+living_tv: media_player.samsung_cu7172_55_tv
+office_heater: climate.office_philips_heater
+
+# Placeholder lamps: these entities don't exist in Home Assistant yet, so
+# they only do something in simulated mode. Point them at real ones later.
+living_floor_lamp: light.living_room_floor_lamp
+living_tv_lamp: light.living_room_tv_lamp
+dining_pendant: light.dining_table
+dining_lamp: light.dining_corner
+kitchen_light: light.kitchen
+hallway_light: light.hallway
+bedroom_lamp: light.bedroom_lamp
+bedroom_light: light.bedroom
+hallway_1_light: light.upstairs_hallway
+bath_light: light.bathroom
+office_light: light.office
+terrace_fairy_lights: light.terrace_fairy_lights
+
+# Scene-level bindings
+_sun: sun.sun

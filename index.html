@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>House Twin</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="bar">
+      <span id="title"></span>
+      <button id="mode" title="Switch between the real house and a simulation"></button>
+      <label id="daynight" title="Time of day (simulated)">☀ <input type="range" min="0" max="24" step="0.25" value="13" /> <output>13:00</output></label>
+      <button id="edit" title="Move, remove and add objects in 3D">Edit</button>
+      <button id="plan" title="Floor-plan editor: walls, doors, windows, furniture">Plan</button>
+    </div>
+    <aside id="floors">
+      <button id="collapse" title="Show or hide the floor list"></button>
+      <div id="views"></div>
+    </aside>
+    <aside id="editor" hidden>
+      <div class="name"></div>
+      <div class="row selection-only">
+        <button class="rot-left" title="Rotate left (R)">⟲</button>
+        <button class="rot-right" title="Rotate right (Shift+R)">⟳</button>
+        <button class="delete" title="Remove (Delete)">Remove</button>
+      </div>
+      <div class="row">
+        <select></select>
+        <button class="add">Add</button>
+      </div>
+      <p>Drag to move · R to rotate · Delete to remove. Changes are saved to house.yaml.</p>
+    </aside>
+    <div id="climate" class="modal" hidden></div>
+    <div id="planner" hidden></div>
+    <div id="toast"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

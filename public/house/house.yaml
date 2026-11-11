@@ -1,0 +1,208 @@
+# The house model. It knows nothing about Home Assistant.
+# Units are metres. Coordinates are [x, z] on the floor plan (y is up):
+# x runs left to right, z runs from the back (terrace) to the front (frontyard).
+# Objects reference a model by name (see src/models/defaults.js) or by a
+# .glb file path relative to public/house/ (e.g. model: models/sofa.glb).
+
+name: Home
+# compass direction the street side of the house faces (0 = north, 90 = east,
+# 180 = south, 270 = west); used to put the sun and moon in the right place
+frontBearing: 180
+
+view:
+  azimuth: -45 # camera direction, degrees (front-left, like the plan's 3D view)
+  elevation: 38
+  size: 17 # metres visible vertically
+  default: ground
+
+walls:
+  height: 2.6
+  interiorHeight: 1.25 # interior walls are cut low, dollhouse style
+  exteriorThickness: 0.2
+  interiorThickness: 0.1
+  color: "#efe6d8"
+floorHeight: 2.9 # floor-to-floor
+
+floors:
+  # ───────────────────────────── ground floor (begane grond)
+  - id: ground
+    name: Begane grond
+    rooms:
+      - {id: dining, name: Living Room, rect: [0, 0, 4.2, 3.75], floor: "#c9a47a"}
+      - {id: living, name: Living Room, rect: [2.4, 3.75, 4.15, 5.8], floor: "#c9a47a"}
+      - {id: kitchen, name: Kitchen, rect: [4.2, 0, 2.35, 3.75], floor: "#ddd6c8"}
+      - {id: hallway_0, name: Hallway, rect: [0, 3.75, 2.4, 5.8], floor: "#d6c7ae"}
+      # backyard: covered terrace, then lawn, borders and a gravel path up to the garage
+      - {id: terrace, name: Terrace, rect: [0, -3.1, 6.55, 3.0], floor: "#7d6c66", outdoor: true}
+      - {id: border_left, name: Garden, rect: [0, -11.1, 1.0, 8.0], floor: "#5d4a3a", outdoor: true}
+      - {id: lawn, name: Garden, rect: [1.0, -11.1, 3.5, 8.0], floor: "#7fae5d", outdoor: true}
+      - {id: path, name: Garden, rect: [4.5, -11.1, 1.25, 8.0], floor: "#cdbf9f", outdoor: true}
+      - {id: border_right, name: Garden, rect: [5.75, -11.1, 0.8, 8.0], floor: "#5d4a3a", outdoor: true}
+      # frontyard: gravel, a planting strip with hydrangeas along the street, low dark fence
+      - {id: frontyard, name: Frontyard, rect: [0, 9.65, 6.55, 5.5], floor: "#d8d0bf", outdoor: true}
+      - {id: frontyard_border, name: Frontyard, rect: [0, 15.15, 6.55, 0.8], floor: "#5d4a3a", outdoor: true}
+    wallList:
+      - {from: [0, 0], to: [6.55, 0], exterior: true, outerColor: "#e9e7e2", openings: [{type: window, at: 0.3, width: 3.7, sill: 0.55, top: 2.4, panes: 3}, {type: door, at: 4.5, width: 0.9, leaf: "#f1efe9", transom: true}, {type: window, at: 5.6, width: 0.7, sill: 2, top: 2.4}]}
+      - {from: [0, -0.1], to: [0, -11.1], exterior: true, height: 1.8, thickness: 0.06, color: "#a88a66"}
+      - {from: [6.55, -0.1], to: [6.55, -11.1], exterior: true, height: 1.8, thickness: 0.06, color: "#a88a66"}
+      - {from: [6.55, 0], to: [6.55, 9.55], exterior: true, outerColor: "#9c5a45"}
+      - {from: [6.55, 9.55], to: [0, 9.55], exterior: true, outerColor: "#e9e7e2", openings: [{type: window, at: 0.25, width: 4, sill: 0.55, top: 2.4, panes: 3}, {type: door, at: 4.45, width: 1, leaf: "#2c3550", transom: true}, {type: window, at: 5.55, width: 0.75, sill: 2, top: 2.4}]}
+      - {from: [0, 9.55], to: [0, 0], exterior: true, outerColor: "#9c5a45"}
+      - {from: [4.2, 0], to: [4.2, 3.75], openings: [{type: door, at: 0.6, width: 0.9}]}
+      - {from: [4.2, 3.75], to: [6.55, 3.75]}
+      - {from: [0, 3.75], to: [2.4, 3.75], openings: [{type: door, at: 1.35, width: 0.9, flip: true}]}
+      - {from: [2.4, 3.75], to: [2.4, 9.55]}
+      - {from: [0, 4.75], to: [1.05, 4.75]}
+      - {from: [1.05, 4.75], to: [1.05, 5.5], openings: [{type: door, at: 0.1, width: 0.65, flip: true}]}
+      - {from: [0, 5.5], to: [1.05, 5.5]}
+      - {from: [0, 7.15], to: [0.9, 7.15]}
+      - {from: [0.9, 7.15], to: [0.9, 7.9], openings: [{type: door, at: 0.05, width: 0.65, flip: true}]}
+      - {from: [0, 7.9], to: [0.9, 7.9]}
+      - {from: [0, 8.35], to: [0.9, 8.35]}
+      - {from: [0.9, 8.35], to: [0.9, 9.55], openings: [{type: door, at: 0.3, width: 0.75, flip: true}]}
+    objects:
+      - {id: frontyard_bush_1, model: bush, at: [0.9, 15.5], params: {size: 0.6}}
+      - {id: frontyard_bush_2, model: bush, at: [2.3, 15.5], params: {size: 0.6, flower: "#8c7bd1"}}
+      - {id: frontyard_bush_3, model: bush, at: [3.9, 15.5], params: {size: 0.7}}
+      - {id: frontyard_bush_4, model: bush, at: [5.3, 15.5], params: {size: 0.6}}
+      - {id: frontyard_fence_street, model: low_fence, at: [3.275, 15.93], params: {length: 6.55}}
+      - {id: frontyard_fence_left, model: low_fence, at: [0.02, 12.8], rot: 90, params: {length: 6.25}}
+      - {id: frontyard_hedge, model: hedge, at: [6.2, 14], rot: 90, params: {length: 2}}
+      - {id: frontyard_planter, model: planter, at: [0.75, 9.95]}
+      - {id: pier_0_left, model: box, outsideOnly: true, at: [0.04, -0.34, 9.62], params: {size: [0.32, 2.94, 0.36], color: "#9c5a45"}}
+      - {id: pier_0_right, model: box, outsideOnly: true, at: [6.51, -0.34, 9.62], params: {size: [0.32, 2.94, 0.36], color: "#9c5a45"}}
+      - {id: pier_0_back_left, model: box, outsideOnly: true, at: [0.04, -0.34, -0.07], params: {size: [0.32, 2.94, 0.36], color: "#9c5a45"}}
+      - {id: pier_0_back_right, model: box, outsideOnly: true, at: [6.51, -0.34, -0.07], params: {size: [0.32, 2.94, 0.36], color: "#9c5a45"}}
+      - {id: terrace_pergola, model: pergola_frame, at: [3.275, -1.6], params: {width: 6, depth: 3}}
+      - {id: terrace_pergola_roof, model: pergola_roof, outsideOnly: true, at: [3.275, -1.6], params: {width: 6, depth: 3}}
+      - {id: terrace_deck, model: rug, at: [1.7, -1.7], params: {size: [2.6, 2.4], color: "#b9824f"}}
+      - {id: terrace_table, model: side_table, at: [1.55, -1.7], params: {radius: 0.42}}
+      - {id: terrace_table_2, model: side_table, at: [2.15, -2], params: {radius: 0.28, height: 0.5}}
+      - {id: terrace_chair_1, model: acapulco_chair, at: [0.9, -1.4], rot: 90}
+      - {id: terrace_chair_2, model: acapulco_chair, at: [1.35, -2.35]}
+      - {id: terrace_chair_3, model: acapulco_chair, at: [2, -1.05], rot: 180}
+      - {id: terrace_rain_barrel, model: rain_barrel, at: [0.6, -3.4]}
+      - {id: terrace_fire_pit, model: fire_pit, at: [2, -3.15]}
+      - {id: terrace_fairy_lights, model: ivy_screen, kind: light, at: [0.1, -2], rot: 90}
+      - {id: garden_flowers_left, model: flower_bed, at: [0.5, -7.1], params: {length: 7.8, depth: 0.9, seed: 1}}
+      - {id: garden_flowers_right, model: flower_bed, at: [6.15, -7.1], params: {length: 7.8, depth: 0.7, seed: 5}}
+      - {id: garden_stones, model: stepping_stones, at: [5.1, -7.1], params: {count: 8}}
+      - {id: garden_garage, model: garage, at: [3.275, -12.65], params: {width: 6.55, depth: 3}}
+      - {id: living_rug, model: rug, at: [4.4, 6.5], params: {size: [1.4, 2], color: "#b9c4b4"}}
+      - {id: living_sofa, model: corner_sofa, at: [3.25, 7.65], rot: 90}
+      - {id: living_tv, model: tv_stand, kind: media_player, at: [6.22, 6.8], rot: -90}
+      - {id: living_tv_lamp, model: floor_lamp, kind: light, at: [6.25, 5.5]}
+      - {id: living_side_table, model: nightstand, at: [6.15, 4.4], rot: -90}
+      - {id: living_christmas_tree, model: christmas_tree, at: [6.15, 0.5, 4.4]}
+      - {id: living_plant, model: plant, at: [6.2, 8.2]}
+      - {id: living_plant_2, model: plant, at: [6.2, 8.85], params: {scale: 0.8}}
+      - {id: dining_rug, model: rug, at: [2.05, 1.8], params: {size: [2, 1.5], color: "#d9b9a0"}}
+      - {id: dining_table, model: round_dining, at: [2.05, 1.8]}
+      - {id: dining_pendant, model: ceiling_light, kind: light, at: [2.05, 1.8]}
+      - {id: dining_lamp, model: floor_lamp, kind: light, at: [0.4, 0.45]}
+      - {id: kitchen_counter, model: kitchen_counter, at: [6.2, 1.6], rot: -90, params: {length: 3}}
+      - {id: kitchen_counter_2, model: kitchen_counter, at: [5.1, 3.4], rot: 180, params: {length: 1.3, plain: true}}
+      - {id: kitchen_fridge, model: fridge, at: [6.15, 3.36], rot: 180}
+      - {id: kitchen_light, model: ceiling_light, kind: light, at: [5.1, 1.6]}
+      - {id: hallway_light, model: ceiling_light, kind: light, at: [1.7, 6.6]}
+      - {id: toilet_0, model: toilet, at: [0.5, 8.7]}
+
+  # ───────────────────────────── first floor (eerste verdieping)
+  - id: first
+    name: Eerste verdieping
+    slabColor: "#3b4459"
+    rooms:
+      - {id: bedroom, name: Bedroom, rect: [0, 0, 4.2, 3.35], floor: "#d8c3a5"}
+      - {id: bulgur, name: Bulgur's room, rect: [4.2, 0, 2.35, 4.25], floor: "#dccdb4"}
+      - {id: hallway_1, name: Hallway, rect: [0, 3.35, 4.2, 1.85], floor: "#d6c7ae"}
+      - {id: server_room, name: Server Room, rect: [4.2, 4.25, 2.35, 0.95], floor: "#c4c8cc"}
+      - {id: bathroom, name: Bathroom, rect: [0, 5.2, 2.1, 4.35], floor: "#cfd8d6"}
+      - {id: office, name: Office, rect: [2.1, 5.2, 4.45, 4.35], floor: "#c9a47a"}
+    wallList:
+      - from: [0, 0]
+        to: [6.55, 0]
+        exterior: true
+        outerColor: "#3b4459"
+        openings:
+          - {type: window, at: 0.3, width: 5.95, sill: 1.0, top: 2.4, panes: 6}
+      - {from: [6.55, 0], to: [6.55, 9.55], exterior: true, outerColor: "#9c5a45"}
+      # street facade: grey corrugated band with a window strip across the full width
+      - from: [6.55, 9.55]
+        to: [0, 9.55]
+        exterior: true
+        outerColor: "#3b4459"
+        openings:
+          - {type: window, at: 0.3, width: 5.95, sill: 1.0, top: 2.4, panes: 6}
+      - {from: [0, 9.55], to: [0, 0], exterior: true, outerColor: "#9c5a45"}
+      - from: [4.2, 0]
+        to: [4.2, 5.2]
+        openings:
+          - {type: door, at: 3.4, width: 0.8}
+          - {type: door, at: 4.4, width: 0.7}
+      - from: [0, 3.35]
+        to: [4.2, 3.35]
+        openings: [{type: door, at: 3.1, width: 0.85}]
+      - {from: [4.2, 4.25], to: [6.55, 4.25]}
+      - from: [0, 5.2]
+        to: [6.55, 5.2]
+        openings:
+          - {type: door, at: 1.15, width: 0.8}
+          - {type: door, at: 2.7, width: 0.85}
+      - {from: [2.1, 5.2], to: [2.1, 9.55]}
+    objects:
+      # brick piers on the street side
+      - {id: pier_1_left, model: box, outsideOnly: true, at: [0.04, -0.34, 9.62], params: {size: [0.32, 2.94, 0.36], color: "#9c5a45"}}
+      - {id: pier_1_right, model: box, outsideOnly: true, at: [6.51, -0.34, 9.62], params: {size: [0.32, 2.94, 0.36], color: "#9c5a45"}}
+      - {id: pier_1_back_left, model: box, outsideOnly: true, at: [0.04, -0.34, -0.07], params: {size: [0.32, 2.94, 0.36], color: "#9c5a45"}}
+      - {id: pier_1_back_right, model: box, outsideOnly: true, at: [6.51, -0.34, -0.07], params: {size: [0.32, 2.94, 0.36], color: "#9c5a45"}}
+      # bedroom
+      - {id: bedroom_rug, model: rug, at: [2.1, 2.3], params: {size: [2.4, 1.2], color: "#d9b9a0"}}
+      - {id: bedroom_bed, model: bed, at: [2.1, 1.2]}
+      - {id: bedroom_nightstand, model: nightstand, at: [0.85, 0.35]}
+      - {id: bedroom_lamp, model: table_lamp, kind: light, at: [0.85, 0.5, 0.35]}
+      - {id: bedroom_wardrobe, model: wardrobe, at: [0.42, 2.4], rot: 90}
+      - {id: bedroom_light, model: ceiling_light, kind: light, at: [2.1, 1.9]}
+      # Bulgur's room
+      - {id: bulgur_cat_tree, model: cat_tree, at: [6.0, 0.6]}
+      - {id: bulgur_rug, model: rug, at: [5.4, 2.4], params: {size: [1.4, 1.4], color: "#e3c9a8"}}
+      - {id: bulgur_plant, model: plant, at: [4.6, 0.45], params: {scale: 0.8}}
+      # server room
+      - {id: server_rack, model: server_rack, at: [5.9, 4.72], rot: -90}
+      # hallway
+      - {id: hallway_1_light, model: ceiling_light, kind: light, at: [2.6, 4.3]}
+      # bathroom
+      - {id: bath_shower, model: shower, at: [0.55, 9.0]}
+      - {id: bath_vanity, model: vanity, at: [0.35, 6.4], rot: 90}
+      - {id: bath_toilet, model: toilet, at: [0.42, 7.6], rot: 90}
+      - {id: bath_light, model: ceiling_light, kind: light, at: [1.05, 7.3]}
+      # office
+      - {id: office_rug, model: rug, at: [3.85, 6.25], params: {size: [2.4, 1.8], color: "#b9c4b4"}}
+      - {id: office_desk, model: desk, at: [6.1, 7.4], rot: -90}
+      - {id: office_chair, model: chair, at: [5.35, 7.4], rot: 90}
+      - {id: office_heater, model: philips_heater, kind: climate, at: [4.55, 6.4]}
+      - {id: office_plant, model: plant, at: [2.5, 5.6]}
+      - {id: office_light, model: ceiling_light, kind: light, at: [4.3, 7.4]}
+      - {id: heater_1, model: heater, at: [5.55, 5.9]}
+
+  # ───────────────────────────── flat roof (plat dak) with solar panels
+  - id: roof
+    name: Roof
+    outsideOnly: true
+    walls: {height: 0.3, color: "#4a4038"}
+    slabColor: "#4a4038"
+    rooms:
+      - {id: roof, name: Roof, rect: [0, 0, 6.55, 9.55], floor: "#5d6066"}
+    wallList:
+      - {from: [0, 0], to: [6.55, 0], exterior: true}
+      - {from: [6.55, 0], to: [6.55, 9.55], exterior: true}
+      - {from: [6.55, 9.55], to: [0, 9.55], exterior: true}
+      - {from: [0, 9.55], to: [0, 0], exterior: true}
+    objects:
+      - {id: solar_1, model: solar_panel, at: [1.3, 2.2]}
+      - {id: solar_2, model: solar_panel, at: [2.5, 2.2]}
+      - {id: solar_3, model: solar_panel, at: [3.7, 2.2]}
+      - {id: solar_4, model: solar_panel, at: [4.9, 2.2]}
+      - {id: solar_5, model: solar_panel, at: [1.3, 5.0]}
+      - {id: solar_6, model: solar_panel, at: [2.5, 5.0]}
+      - {id: solar_7, model: solar_panel, at: [3.7, 5.0]}
+      - {id: solar_8, model: solar_panel, at: [4.9, 5.0]}
