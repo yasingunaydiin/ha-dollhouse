@@ -186,6 +186,8 @@ async function placeObject(rec, def, objects) {
   const [x, y, z] = def.at.length === 3 ? def.at : [def.at[0], 0, def.at[1]];
   obj.position.set(x, y, z);
   obj.rotation.y = THREE.MathUtils.degToRad(def.rot ?? 0);
+  // stretch: [width, height, depth] factors set by resizing in the plan editor
+  if (def.stretch) obj.scale.multiply(new THREE.Vector3(...def.stretch));
   obj.name = def.id;
   obj.userData.objectId = def.id;
   obj.traverse((o) => {

@@ -26,12 +26,17 @@
         <button class="delete" title="Remove (Delete)">Remove</button>
       </div>
       <div class="row">
+        <button class="undo" title="Undo (Ctrl+Z)">↶ Undo</button>
+        <button class="redo" title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
+      </div>
+      <div class="row">
         <select></select>
         <button class="add">Add</button>
       </div>
-      <p>Drag to move · R to rotate · Delete to remove. Changes are saved to house.yaml.</p>
+      <p>Drag to move · R to rotate · Delete to remove · Ctrl+Z to undo. Changes are saved to house.yaml.</p>
     </aside>
     <div id="climate" class="modal" hidden></div>
+    <div id="camera" class="modal" hidden></div>
     <div id="planner" hidden></div>
     <div id="toast"></div>
     <script type="module" src="/src/main.js"></script>

@@ -6,6 +6,9 @@
 # Real entities
 living_tv: media_player.samsung_cu7172_55_tv
 office_heater: climate.office_philips_heater
+backyard_camera: camera.tapo_c200_hd_stream
+# no D210 entity exists in Home Assistant; the C100 stream is a guess
+doorbell: camera.tapo_c100_hd_stream
 
 # Placeholder lamps: these entities don't exist in Home Assistant yet, so
 # they only do something in simulated mode. Point them at real ones later.
@@ -19,7 +22,10 @@ bedroom_lamp: light.bedroom_lamp
 bedroom_light: light.bedroom
 hallway_1_light: light.upstairs_hallway
 bath_light: light.bathroom
+guest_light: light.guest_room
 office_light: light.office
+office_reading_lamp: light.office_reading_lamp
+office_desk_lamp: light.office_desk_lamp
 terrace_fairy_lights: light.terrace_fairy_lights
 
 # Scene-level bindings

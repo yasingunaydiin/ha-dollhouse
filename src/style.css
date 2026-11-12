@@ -99,6 +99,8 @@ body.night #plan, body.night #edit:not(.active) { background: #343a55; color: #c
   background: #fffdf8; padding: 5px 10px; cursor: pointer; min-width: 0;
 }
 #editor select { flex: 1; }
+#editor .undo, #editor .redo { flex: 1; }
+#editor button:disabled { opacity: 0.4; cursor: default; }
 #editor .delete { margin-left: auto; color: #b3402e; }
 #editor .add { background: #1f9fd0; color: #fff; border-color: #1f9fd0; font-weight: 600; }
 #editor p { margin: 4px 0 0; color: #8a7b66; font-size: 12px; line-height: 1.4; }
@@ -199,4 +201,14 @@ body.night .modal .card { --ink: #eceaf4; --soft: #9aa0c0; --chip: #2c3150; --ac
 #planner .obj .front { stroke: #6f83e0; vector-effect: non-scaling-stroke; stroke-width: 2; pointer-events: none; }
 #planner .obj.sel rect { stroke: #38c6f4; fill: rgba(56, 198, 244, 0.22); stroke-width: 2; }
 #planner .handle { fill: #0b1020; stroke: #38c6f4; cursor: crosshair; }
+#planner .grip { fill: #38c6f4; stroke: #0b1020; cursor: nwse-resize; }
+#planner .turn { fill: #0b1020; stroke: #38c6f4; cursor: grab; }
+#planner .turn-arm { stroke: #38c6f4; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+#planner .props .reset-size { border-radius: 9px; }
 @media (max-width: 700px) { #planner { grid-template: "bar" auto "plan" 1fr "props" auto "hint" auto / 1fr; } #planner .props { border-left: 0; border-top: 1px solid #1c2748; max-height: 32vh; } }
+
+#camera .card { width: min(720px, calc(100vw - 32px)); }
+#camera .picture { margin-top: 12px; border-radius: 14px; overflow: hidden; background: #111; min-height: 180px; display: grid; place-items: center; }
+#camera .picture img { display: block; width: 100%; }
+#camera .picture img[hidden], #camera .picture p[hidden] { display: none; }
+#camera .picture p { color: #b9bcc6; margin: 0; padding: 24px; }

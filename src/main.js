@@ -10,6 +10,7 @@ import { HaSource } from './state/ha.js';
 import { attachBehaviors } from './behaviors.js';
 import { createEditor } from './editor.js';
 import { createClimateDialog } from './dialogs/climate.js';
+import { createCameraDialog } from './dialogs/camera.js';
 import { createPlanner } from './planner.js';
 
 const loadYaml = async (path) => parse(await (await fetch(path)).text());
@@ -26,7 +27,7 @@ const built = await buildHouse(house);
 world.scene.add(built.root);
 
 const store = new Store();
-const behaviors = attachBehaviors(built.objects, links, store);
+const behaviors = attachBehaviors(built.objects, links, store, { house, built });
 
 // --- UI
 const toast = document.getElementById('toast');
@@ -229,7 +230,10 @@ function roomOf(entry) {
   const { x, z } = entry.object3d.position;
   return floor?.rooms.find(({ rect: [rx, rz, w, d] }) => x >= rx && x <= rx + w && z >= rz && z <= rz + d)?.name;
 }
-const dialogs = { climate: createClimateDialog({ store, getSource: () => source, say, roomOf }) };
+const dialogs = {
+  climate: createClimateDialog({ store, getSource: () => source, say, roomOf }),
+  camera: createCameraDialog({ store, getSource: () => source, roomOf }),
+};
 
 // --- picking: click an object that has a behaviour
 
@@ -248,13 +252,32 @@ function pick(event) {
   return null;
 }
 
+// The floor a click landed on: the floor that the clicked wall, slab or piece
+// of furniture belongs to (the roof counts as the top floor). A click next to
+// the house lands on nothing and gives 'outside', the whole house closed up.
+function floorAt(event) {
+  const r = canvas.getBoundingClientRect();
+  pointer.set(((event.clientX - r.left) / r.width) * 2 - 1, -((event.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(pointer, world.camera);
+  for (const hit of raycaster.intersectObject(built.root, true)) {
+    let shown = true, floor = null;
+    for (let p = hit.object; p; p = p.parent) {
+      shown &&= p.visible;
+      floor ??= built.floors.find((f) => f.group === p);
+    }
+    if (!shown || !floor) continue;
+    return (floor.outsideOnly ? realFloors[realFloors.length - 1] : floor).id;
+  }
+  return 'outside';
+}
+
 let downAt = null;
 canvas.addEventListener('pointerdown', (e) => (downAt = [e.clientX, e.clientY]));
 canvas.addEventListener('pointerup', (e) => {
   if (editor.enabled) return;
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
   const entry = pick(e);
-  if (!entry) return;
+  if (!entry) return showView(floorAt(e));
   if (!store.get(entry.entityId)) return say(`${entry.entityId} doesn't exist in Home Assistant`);
   if (entry.kind.dialog) return dialogs[entry.kind.dialog].open(entry);
   entry.kind.click(entry, source, store.get(entry.entityId)).catch((err) => say(err.message));

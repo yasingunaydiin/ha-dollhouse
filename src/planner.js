@@ -34,7 +34,7 @@ export function createPlanner({ house, say }) {
   const svg = $('svg');
   const props = $('.props');
   const HINTS = {
-    select: 'Click to select · drag furniture, walls, corners and openings · arrow keys nudge · R rotates · Del deletes · Ctrl+Z undo · scroll to zoom',
+    select: 'Click to select · drag to move · drag a corner to resize (Shift keeps proportions) · drag the round handle to turn (Shift for 1° steps) · arrow keys nudge · R rotates · Del deletes · Ctrl+Z undo · scroll to zoom',
     wall: 'Drag to draw a wall · it snaps to the grid, to existing corners and to straight lines · Esc to stop',
     door: 'Click a wall to put a door in it',
     window: 'Click a wall to put a window in it',
@@ -69,11 +69,24 @@ export function createPlanner({ house, say }) {
     const key = def.model + JSON.stringify(def.params ?? {});
     if (!sizes.has(key)) {
       const b = new THREE.Box3().setFromObject(await createModel(def.model, def.params));
-      sizes.set(key, b.isEmpty() ? { x0: -0.25, x1: 0.25, z0: -0.25, z1: 0.25 } : { x0: b.min.x, x1: b.max.x, z0: b.min.z, z1: b.max.z });
+      sizes.set(key, b.isEmpty() ? { x0: -0.25, x1: 0.25, z0: -0.25, z1: 0.25, h: 0.5 } : { x0: b.min.x, x1: b.max.x, z0: b.min.z, z1: b.max.z, h: b.max.y - b.min.y });
     }
     return sizes.get(key);
   }
-  const sizeOf = (def) => sizes.get(def.model + JSON.stringify(def.params ?? {})) ?? { x0: -0.25, x1: 0.25, z0: -0.25, z1: 0.25 };
+  // the model's own footprint, before any resizing
+  const sizeOf = (def) => sizes.get(def.model + JSON.stringify(def.params ?? {})) ?? { x0: -0.25, x1: 0.25, z0: -0.25, z1: 0.25, h: 0.5 };
+  // resizing is stored as stretch: [width, height, depth] factors on the object
+  const stretchOf = (def) => def.stretch ?? [1, 1, 1];
+  function setStretch(def, v) {
+    if (v.every((k) => Math.abs(k - 1) < 1e-3)) delete def.stretch;
+    else def.stretch = v.map((k) => Math.round(k * 1e4) / 1e4);
+  }
+  // footprint as it stands now, in the object's own (unrotated) frame
+  function boxOf(def) {
+    const n = sizeOf(def), [sx, sy, sz] = stretchOf(def);
+    return { x0: n.x0 * sx, x1: n.x1 * sx, z0: n.z0 * sz, z1: n.z1 * sz, h: n.h * sy };
+  }
+  const metres = (n) => `${+n.toFixed(2)} m`;
 
   // ── saving and undo
   function pushUndo() {
@@ -155,12 +168,11 @@ export function createPlanner({ house, say }) {
     }
 
     objects().forEach((o, i) => {
-      const b = sizeOf(o), [x, z] = xz(o);
+      const b = boxOf(o), [x, z] = xz(o);
       const on = sel?.kind === 'object' && sel.i === i;
       h += `<g class="obj${on ? ' sel' : ''}" data-kind="object" data-i="${i}" transform="translate(${x} ${z}) rotate(${-(o.rot ?? 0)})">
         <rect x="${b.x0}" y="${b.z0}" width="${b.x1 - b.x0}" height="${b.z1 - b.z0}" rx="${3 * s}"/>
         <path d="M${(b.x0 + b.x1) / 2 - 5 * s} ${b.z1 - 3 * s}h${10 * s}" class="front"/></g>`;
-      if (on) h += `<text class="obj-name" x="${x}" y="${z - (b.z1 - b.z0) / 2 - 8 * s}" font-size="${11 * s}">${esc(o.id)}</text>`;
     });
 
     walls().forEach((w, i) => {
@@ -198,6 +210,22 @@ export function createPlanner({ house, say }) {
       }
     });
 
+    // the selected object's size, corner grips and turn handle go on top of everything
+    if (sel?.kind === 'object' && objects()[sel.i]) {
+      const o = objects()[sel.i], b = boxOf(o), [x, z] = xz(o), i = sel.i;
+      const th = (-(o.rot ?? 0) * Math.PI) / 180;
+      // how far the turned footprint reaches above and below its position on screen
+      const reach = [b.x0, b.x1].flatMap((lx) => [b.z0, b.z1].map((lz) => lx * Math.sin(th) + lz * Math.cos(th)));
+      const g = 9 * s, arm = b.x1 + 30 * s;
+      h += `<text class="obj-name" x="${x}" y="${z + Math.min(...reach) - 22 * s}" font-size="${11 * s}">${esc(o.id)}</text>
+        <text class="len" x="${x}" y="${z + Math.min(...reach) - 8 * s}" font-size="${11 * s}">${metres(b.x1 - b.x0)} × ${metres(b.z1 - b.z0)}</text>
+        <g transform="translate(${x} ${z}) rotate(${-(o.rot ?? 0)})">
+          <line class="turn-arm" x1="${b.x1}" y1="0" x2="${arm}" y2="0"/>
+          <circle class="turn" data-kind="rotate" data-i="${i}" cx="${arm}" cy="0" r="${7 * s}" stroke-width="${2 * s}"/>
+          ${[0, 1, 2, 3].map((c) => `<rect class="grip" data-kind="resize" data-i="${i}" data-c="${c}" x="${(c & 1 ? b.x1 : b.x0) - g / 2}" y="${(c & 2 ? b.z1 : b.z0) - g / 2}" width="${g}" height="${g}" stroke-width="${1.5 * s}"/>`).join('')}
+        </g>`;
+    }
+
     if (draft) h += `<line class="wall draft" x1="${draft.a[0]}" y1="${draft.a[1]}" x2="${draft.b[0]}" y2="${draft.b[1]}" stroke-width="${Math.max(0.1, 4 * s)}"/>
       <text class="len" x="${(draft.a[0] + draft.b[0]) / 2}" y="${(draft.a[1] + draft.b[1]) / 2 - 8 * s}" font-size="${11 * s}">${Math.hypot(draft.b[0] - draft.a[0], draft.b[1] - draft.a[1]).toFixed(2)} m</text>`;
     svg.innerHTML = h;
@@ -219,9 +247,13 @@ export function createPlanner({ house, say }) {
       return;
     }
     if (sel.kind === 'object') {
-      const o = objects()[sel.i], [x, z] = xz(o);
+      const o = objects()[sel.i], [x, z] = xz(o), b = boxOf(o);
+      const size = (n) => +n.toFixed(2);
       props.innerHTML = `<h3>${esc(o.id)}</h3><p>${esc(o.model)}</p>
         ${field('X (m)', 'x', x)}${field('Z (m)', 'z', z)}${field('Rotation (°)', 'rot', o.rot ?? 0, 'type="number" step="15"')}
+        <div class="pair">${field('Width (m)', 'w', size(b.x1 - b.x0), 'type="number" step="0.05" min="0.05"')}${field('Depth (m)', 'd', size(b.z1 - b.z0), 'type="number" step="0.05" min="0.05"')}</div>
+        ${field('Height (m)', 'h', size(b.h), 'type="number" step="0.05" min="0.05"')}
+        ${o.stretch ? '<button class="reset-size">Original size</button>' : ''}
         <button class="delete">Delete</button>`;
     } else if (sel.kind === 'wall') {
       const w = walls()[sel.i];
@@ -264,6 +296,12 @@ export function createPlanner({ house, say }) {
         if (prop === 'x') setXZ(o, num ?? x, z);
         if (prop === 'z') setXZ(o, x, num ?? z);
         if (prop === 'rot') set(o, 'rot', num || undefined);
+        if ('wdh'.includes(prop) && num > 0) {
+          const n = sizeOf(o), v = [...stretchOf(o)];
+          const k = { w: 0, h: 1, d: 2 }[prop];
+          v[k] = num / ([n.x1 - n.x0, n.h, n.z1 - n.z0][k] || 1);
+          setStretch(o, v);
+        }
       } else if (sel.kind === 'wall') {
         const w = walls()[sel.i];
         if (/^(from|to)[01]$/.test(prop)) w[prop.slice(0, -1)][+prop.slice(-1)] = round(num ?? 0);
@@ -282,7 +320,13 @@ export function createPlanner({ house, say }) {
     });
     renderProps();
   });
-  props.addEventListener('click', (e) => e.target.matches('.delete') && remove());
+  props.addEventListener('click', (e) => {
+    if (e.target.matches('.delete')) remove();
+    else if (e.target.matches('.reset-size') && sel?.kind === 'object') {
+      change(() => delete objects()[sel.i].stretch);
+      renderProps();
+    }
+  });
 
   // ── actions
   function remove() {
@@ -340,6 +384,10 @@ export function createPlanner({ house, say }) {
     } else if (!t) {
       sel = null;
       drag = { kind: 'pan', cx: e.clientX, cy: e.clientY, vx: view.x, vy: view.y, s: px() };
+    } else if (kind === 'resize' || kind === 'rotate') {
+      const o = objects()[i];
+      sel = { kind: 'object', i };
+      drag = { kind, i, c: +t.dataset.c, p, at: xz(o), stretch: [...stretchOf(o)] };
     } else if (kind === 'handle') {
       const w = walls()[i], end = t.dataset.end, at = w[end];
       // every wall end sitting on this corner moves with it
@@ -373,7 +421,34 @@ export function createPlanner({ house, say }) {
       pushUndo();
       drag.moved = true;
     }
-    if (drag.kind === 'object') {
+    if (drag.kind === 'rotate') {
+      // turn the object so its handle points at the pointer
+      const o = objects()[drag.i], [ox, oz] = xz(o);
+      const step = e.shiftKey ? 1 : 15;
+      const rot = Math.round((-Math.atan2(p[1] - oz, p[0] - ox) * 180) / Math.PI / step) * step;
+      o.rot = ((rot + 180) % 360 + 360) % 360 - 180;
+      if (!o.rot) delete o.rot;
+    } else if (drag.kind === 'resize') {
+      // the dragged corner follows the pointer, the opposite corner stays put
+      const o = objects()[drag.i], n = sizeOf(o);
+      const th = (-(o.rot ?? 0) * Math.PI) / 180, cos = Math.cos(th), sin = Math.sin(th);
+      const [ox, oz] = drag.at, [sx0, sy0, sz0] = drag.stretch;
+      const dx = p[0] - ox, dz = p[1] - oz;
+      const lx = dx * cos + dz * sin, lz = -dx * sin + dz * cos;
+      const xs = drag.c & 1 ? 1 : -1, zs = drag.c & 2 ? 1 : -1;
+      const nax = xs > 0 ? n.x0 : n.x1, naz = zs > 0 ? n.z0 : n.z1; // the fixed corner
+      const ax = nax * sx0, az = naz * sz0;
+      let sx = Math.max(GRID, snap(xs * (lx - ax))) / (n.x1 - n.x0 || 1);
+      let sz = Math.max(GRID, snap(zs * (lz - az))) / (n.z1 - n.z0 || 1);
+      let sy = sy0;
+      if (e.shiftKey) {
+        const k = Math.max(sx / sx0, sz / sz0);
+        [sx, sy, sz] = [sx0 * k, sy0 * k, sz0 * k];
+      }
+      const mx = ax - nax * sx, mz = az - naz * sz;
+      setXZ(o, ox + mx * cos - mz * sin, oz + mx * sin + mz * cos);
+      setStretch(o, [sx, sy, sz]);
+    } else if (drag.kind === 'object') {
       setXZ(objects()[sel.i], snap(drag.orig[0] + p[0] - drag.p[0]), snap(drag.orig[1] + p[1] - drag.p[1]));
     } else if (drag.kind === 'wall') {
       const w = walls()[sel.i], dx = snap(p[0] - drag.p[0]), dz = snap(p[1] - drag.p[1]);

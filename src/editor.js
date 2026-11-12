@@ -1,5 +1,6 @@
 // Edit mode: select, drag, rotate, delete and add objects. Every change is
-// saved straight into house.yaml through the dev server.
+// saved straight into house.yaml through the dev server, and can be undone
+// (Ctrl/Cmd+Z) and redone (Ctrl/Cmd+Shift+Z or Ctrl+Y) until the page reloads.
 import * as THREE from 'three';
 import { listModels } from './models/registry.js';
 
@@ -71,6 +72,70 @@ export function createEditor({ world, built, house, container, say }) {
     panel.classList.toggle('has-selection', !!entry);
   }
 
+  // ── undo / redo: each step knows how to reverse itself and how to redo itself
+  const history = [];
+  const future = [];
+  const undoButton = panel.querySelector('.undo');
+  const redoButton = panel.querySelector('.redo');
+  function refreshHistory() {
+    undoButton.disabled = !history.length;
+    redoButton.disabled = !future.length;
+  }
+  function record(step) {
+    history.push(step);
+    if (history.length > 100) history.shift();
+    future.length = 0;
+    refreshHistory();
+  }
+  let stepping = Promise.resolve(); // one step at a time, in order
+  function step(from, to, run, word) {
+    stepping = stepping.then(async () => {
+      const s = from.pop();
+      if (!s) return;
+      await s[run]();
+      to.push(s);
+      refreshHistory();
+      say(`${word}: ${s.label}`);
+    });
+  }
+  const undo = () => step(history, future, 'undo', 'Undid');
+  const redo = () => step(future, history, 'redo', 'Redid');
+
+  const poseOf = (entry) => ({ at: [...entry.def.at], rot: entry.def.rot ?? 0 });
+  const samePose = (a, b) => a.rot === b.rot && a.at.every((v, i) => v === b.at[i]);
+  function setPose(id, pose) {
+    const entry = built.objects.get(id);
+    if (!entry) return;
+    const [x, y, z] = pose.at.length === 3 ? pose.at : [pose.at[0], 0, pose.at[1]];
+    entry.object3d.position.set(x, y, z);
+    entry.def.rot = pose.rot;
+    entry.object3d.rotation.y = THREE.MathUtils.degToRad(pose.rot);
+    saveMove(entry);
+    select(entry);
+  }
+  // remember a move or turn that just happened, so it can be reversed
+  function recordPose(entry, before, label) {
+    const id = entry.def.id, after = poseOf(entry);
+    if (samePose(before, after)) return;
+    record({ label: `${label} ${id}`, undo: () => setPose(id, before), redo: () => setPose(id, after) });
+  }
+
+  function takeOut(id) {
+    const entry = built.objects.get(id);
+    if (!entry) return;
+    if (selected === entry) select(null);
+    built.removeObject(id);
+    const list = house.floors.find((f) => f.id === entry.floorId)?.objects ?? [];
+    if (list.includes(entry.def)) list.splice(list.indexOf(entry.def), 1);
+    save({ op: 'remove', floor: entry.floorId, id });
+  }
+  async function putBack(floorId, def) {
+    if (built.objects.has(def.id)) return;
+    (house.floors.find((f) => f.id === floorId).objects ??= []).push(def);
+    select(await built.addObject(floorId, def));
+    save({ op: 'add', floor: floorId, id: def.id, def });
+  }
+
   function saveMove(entry) {
     const p = entry.object3d.position;
     const r = (n) => Math.round(n * 100) / 100;
@@ -80,20 +145,19 @@ export function createEditor({ world, built, house, container, say }) {
 
   function rotate(dir) {
     if (!selected) return;
+    const before = poseOf(selected);
     selected.def.rot = (((selected.def.rot ?? 0) + dir * ROT_STEP + 180) % 360 + 360) % 360 - 180;
     selected.object3d.rotation.y = THREE.MathUtils.degToRad(selected.def.rot);
     saveMove(selected);
+    recordPose(selected, before, 'turn');
   }
 
   function remove() {
     if (!selected) return;
-    const entry = selected;
-    select(null);
-    built.removeObject(entry.def.id);
-    const list = house.floors.find((f) => f.id === entry.floorId)?.objects ?? [];
-    if (list.includes(entry.def)) list.splice(list.indexOf(entry.def), 1);
-    save({ op: 'remove', floor: entry.floorId, id: entry.def.id });
-    say(`Removed ${entry.def.id}`);
+    const { def, floorId } = selected;
+    takeOut(def.id);
+    record({ label: `remove ${def.id}`, undo: () => putBack(floorId, def), redo: () => takeOut(def.id) });
+    say(`Removed ${def.id}`);
   }
 
   async function add() {
@@ -108,6 +172,7 @@ export function createEditor({ world, built, house, container, say }) {
     (house.floors.find((f) => f.id === floor.id).objects ??= []).push(def);
     select(await built.addObject(floor.id, def));
     save({ op: 'add', floor: floor.id, id: def.id, def });
+    record({ label: `add ${def.id}`, undo: () => takeOut(def.id), redo: () => putBack(floor.id, def) });
     say(`Added ${def.id} — drag it into place`);
   }
 
@@ -121,7 +186,7 @@ export function createEditor({ world, built, house, container, say }) {
     const p = floorPoint(e, entry);
     if (!p) return;
     world.controls.enabled = false;
-    drag = { entry, dx: entry.object3d.position.x - p.x, dz: entry.object3d.position.z - p.z, x: e.clientX, y: e.clientY, moved: false };
+    drag = { entry, dx: entry.object3d.position.x - p.x, dz: entry.object3d.position.z - p.z, x: e.clientX, y: e.clientY, moved: false, before: poseOf(entry) };
   }, true);
 
   window.addEventListener('pointermove', (e) => {
@@ -138,14 +203,20 @@ export function createEditor({ world, built, house, container, say }) {
   window.addEventListener('pointerup', () => {
     if (!drag) return;
     world.controls.enabled = true;
-    if (drag.moved) saveMove(drag.entry);
+    if (drag.moved) {
+      saveMove(drag.entry);
+      recordPose(drag.entry, drag.before, 'move');
+    }
     drag = null;
   });
 
   window.addEventListener('keydown', (e) => {
     if (!document.getElementById('planner').hidden) return;
     if (!enabled || e.target.matches('input, select, textarea')) return;
-    if (e.key === 'r' || e.key === 'R') rotate(e.shiftKey ? -1 : 1);
+    const z = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z';
+    if (z || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y')) (z && !e.shiftKey ? undo : redo)();
+    else if (e.ctrlKey || e.metaKey || e.altKey) return;
+    else if (e.key === 'r' || e.key === 'R') rotate(e.shiftKey ? -1 : 1);
     else if (e.key === 'Delete' || e.key === 'Backspace') remove();
     else if (e.key === 'Escape') select(null);
     else return;
@@ -156,6 +227,9 @@ export function createEditor({ world, built, house, container, say }) {
   panel.querySelector('.rot-right').addEventListener('click', () => rotate(-1));
   panel.querySelector('.delete').addEventListener('click', remove);
   panel.querySelector('.add').addEventListener('click', add);
+  undoButton.addEventListener('click', undo);
+  redoButton.addEventListener('click', redo);
+  refreshHistory();
 
   return {
     get enabled() { return enabled; },

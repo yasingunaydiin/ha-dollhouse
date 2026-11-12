@@ -4,7 +4,8 @@
 // only takes effect after a short delay.
 const DELAY_MS = 250;
 
-const INITIAL = { light: 'off', media_player: 'off', climate: 'off', sun: 'above_horizon' };
+// lights start switched on
+const INITIAL = { light: 'on', media_player: 'off', climate: 'off', camera: 'idle', sun: 'above_horizon' };
 const ATTRIBUTES = {
   climate: {
     hvac_modes: ['off', 'heat'], min_temp: 5, max_temp: 30, target_temp_step: 0.5,

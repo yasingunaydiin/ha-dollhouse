@@ -3,6 +3,7 @@
 // HA's WebSocket API, and exposes it to the web as:
 //   GET  /api/ha/events   server-sent events: status, snapshot, state
 //   POST /api/ha/service  { domain, service, data }  (refused when read-only)
+//   GET  /api/ha/camera/<camera entity_id>   the camera's current picture
 export function createGateway({ url, token, readOnly = true, control = [], log = console }) {
   // control: domains that may be commanded even while read-only (e.g. ['climate'])
   const configured = Boolean(url && token);
@@ -88,6 +89,18 @@ export function createGateway({ url, token, readOnly = true, control = [], log =
       if (connected) send(res, 'snapshot', [...states.values()]);
       clients.add(res);
       req.on('close', () => clients.delete(res));
+    } else if (path.startsWith('/api/ha/camera/') && req.method === 'GET') {
+      // a still from a camera entity, fetched with the server-side token
+      const id = path.slice('/api/ha/camera/'.length);
+      if (!/^camera\.[a-z0-9_]+$/.test(id) || !states.has(id)) return json(res, 404, { error: 'No such camera' });
+      try {
+        const r = await fetch(`${url.replace(/\/$/, '')}/api/camera_proxy/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!r.ok) return json(res, 502, { error: `Home Assistant answered ${r.status}` });
+        res.writeHead(200, { 'Content-Type': r.headers.get('content-type') ?? 'image/jpeg', 'Cache-Control': 'no-store' });
+        res.end(Buffer.from(await r.arrayBuffer()));
+      } catch (err) {
+        json(res, 502, { error: err.message });
+      }
     } else if (path === '/api/ha/service' && req.method === 'POST') {
       try {
         let body = '';
