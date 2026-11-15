@@ -54,7 +54,7 @@ const built = await buildHouse(house);
 world.scene.add(built.root);
 
 const store = new Store();
-const behaviors = attachBehaviors(built.objects, links, store, { house, built });
+const behaviors = attachBehaviors(built.objects, links, store, { house, built, scene: world.scene, focus: world.controls.target });
 
 // --- UI
 const toast = document.getElementById('toast');

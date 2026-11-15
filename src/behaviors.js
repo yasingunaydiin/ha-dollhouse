@@ -33,6 +33,51 @@ function makeLabel() {
   };
 }
 
+// Lamp pool. Every PointLight in the scene is evaluated for every pixel of every
+// material, even at intensity 0, so one light per lamp (24+ in a house) is slow.
+// Objects own a cheap "virtual lamp" instead, and a small fixed set of real lights
+// is lent each frame to the brightest lamps nearest to where the camera looks.
+// The count of real lights never changes, so shaders are never recompiled.
+const POOL_SIZE = 6;
+const virtualLamps = [];
+function makeLamp(color, distance, decay, anchor) {
+  const lamp = { color: new THREE.Color(color), intensity: 0, distance, decay, anchor, slot: -1 };
+  virtualLamps.push(lamp);
+  return lamp;
+}
+const pool = [];
+const lampPos = new THREE.Vector3();
+function updateLampPool(scene, focus) {
+  if (!scene) return;
+  while (pool.length < POOL_SIZE) {
+    const l = new THREE.PointLight('#ffffff', 0, 7, 1.6);
+    scene.add(l);
+    pool.push(l);
+  }
+  const lit = [];
+  for (const v of virtualLamps) {
+    let top = v.anchor;
+    while (top.parent) top = top.parent;
+    if (v.intensity <= 0.01 || top !== scene) { v.slot = -1; continue; } // off, or its object was removed
+    v.anchor.getWorldPosition(lampPos);
+    const d2 = lampPos.distanceToSquared(focus);
+    v.score = (v.intensity / (1 + d2 / 40)) * (v.slot >= 0 ? 1.4 : 1); // keep current ones: no flicker
+    v.pos = (v.pos ?? new THREE.Vector3()).copy(lampPos);
+    lit.push(v);
+  }
+  lit.sort((a, b) => b.score - a.score);
+  lit.forEach((v, i) => { v.slot = i < POOL_SIZE ? i : -1; });
+  pool.forEach((light, i) => {
+    const v = lit.find((x) => x.slot === i);
+    if (!v) { light.intensity = 0; return; }
+    light.position.copy(v.pos);
+    light.color.copy(v.color);
+    light.intensity = v.intensity;
+    light.distance = v.distance;
+    light.decay = v.decay;
+  });
+}
+
 const kinds = {
   light: {
     setup(entry) {
@@ -42,10 +87,9 @@ const kinds = {
         if (o.isMesh && o.name.startsWith('glow')) glows.push(o);
         if (o.name === 'light_anchor') anchor = o;
       });
-      const lamp = new THREE.PointLight('#ffc98a', 0, 7, 1.6);
+      const lamp = makeLamp('#ffc98a', 7, 1.6, anchor ?? entry.object3d);
       // coloured lamps (LED strips) light the room in their own colour
       if (glows[0]?.material.emissive) lamp.color.copy(glows[0].material.emissive);
-      (anchor ?? entry.object3d).add(lamp);
       entry.light = { glows, lamp, level: 0, target: 0 };
     },
     apply(entry, state) {
@@ -76,8 +120,7 @@ const kinds = {
         if (o.isMesh && o.name.startsWith('glow')) glows.push(o);
         if (o.name === 'light_anchor') anchor = o;
       });
-      const lamp = new THREE.PointLight('#ff8a3c', 0, 3.5, 1.8);
-      (anchor ?? entry.object3d).add(lamp);
+      const lamp = makeLamp('#ff8a3c', 3.5, 1.8, anchor ?? entry.object3d);
       const label = makeLabel();
       const size = new THREE.Box3().setFromObject(entry.object3d).getSize(new THREE.Vector3());
       label.sprite.position.y = size.y / entry.object3d.scale.y + 0.3;
@@ -383,6 +426,7 @@ export function attachBehaviors(objects, links, store, context = null) {
   return {
     update(dt) {
       for (const e of active) e.kind.update?.(e, dt);
+      updateLampPool(context?.scene, context?.focus);
     },
   };
 }
