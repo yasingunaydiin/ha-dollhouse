@@ -43,6 +43,8 @@ const kinds = {
         if (o.name === 'light_anchor') anchor = o;
       });
       const lamp = new THREE.PointLight('#ffc98a', 0, 7, 1.6);
+      // coloured lamps (LED strips) light the room in their own colour
+      if (glows[0]?.material.emissive) lamp.color.copy(glows[0].material.emissive);
       (anchor ?? entry.object3d).add(lamp);
       entry.light = { glows, lamp, level: 0, target: 0 };
     },
@@ -56,8 +58,10 @@ const kinds = {
       const l = entry.light;
       if (Math.abs(l.level - l.target) < 1e-3) return;
       l.level = THREE.MathUtils.damp(l.level, l.target, 10, dt);
-      l.lamp.intensity = l.level * 9;
-      for (const g of l.glows) g.material.emissiveIntensity = l.level * 2.2;
+      // a glow part can ask for more (userData.boost), e.g. LED strips
+      const boost = l.glows[0]?.userData.boost ?? 1;
+      l.lamp.intensity = l.level * 9 * boost;
+      for (const g of l.glows) g.material.emissiveIntensity = l.level * 2.2 * (g.userData.boost ?? 1);
     },
     click(entry, source) {
       return source.callService('light', 'toggle', { entity_id: entry.entityId });
@@ -150,7 +154,9 @@ function buildNav(entry) {
   const { house, built } = world;
   const def = house.floors.find((f) => f.id === entry.floorId);
   const rec = built.floors.find((f) => f.id === entry.floorId);
-  const rooms = (def.rooms ?? []).filter((r) => !r.outdoor).map((r) => r.rect);
+  let rooms = (def.rooms ?? []).filter((r) => !r.outdoor).map((r) => r.rect);
+  if (!rooms.length) rooms = (def.rooms ?? []).map((r) => r.rect); // no house yet: roam the lot
+  if (!rooms.length) rooms = [[0, 0, 1, 1]];
   const x0 = Math.min(...rooms.map((r) => r[0])), z0 = Math.min(...rooms.map((r) => r[1]));
   const W = Math.ceil((Math.max(...rooms.map((r) => r[0] + r[2])) - x0) / CELL);
   const H = Math.ceil((Math.max(...rooms.map((r) => r[1] + r[3])) - z0) / CELL);

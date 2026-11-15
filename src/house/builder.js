@@ -31,6 +31,15 @@ function buildSlabs(floor, cfg, group) {
     minX = Math.min(minX, x); minZ = Math.min(minZ, z);
     maxX = Math.max(maxX, x + w); maxZ = Math.max(maxZ, z + d);
   }
+  if (minX === Infinity) {
+    // no indoor rooms (an empty lot): centre on whatever ground there is, no house base
+    const b = { minX: 0, minZ: 0, maxX: 0, maxZ: 0 };
+    for (const { rect: [x, z, w, d] } of floor.rooms) {
+      b.minX = Math.min(b.minX, x); b.minZ = Math.min(b.minZ, z);
+      b.maxX = Math.max(b.maxX, x + w); b.maxZ = Math.max(b.maxZ, z + d);
+    }
+    return b;
+  }
   const t = cfg.exteriorThickness;
   const base = new THREE.Mesh(
     new THREE.BoxGeometry(maxX - minX + t, 0.28, maxZ - minZ + t),
@@ -44,7 +53,7 @@ function buildSlabs(floor, cfg, group) {
 }
 
 // Wall options (house.yaml): exterior, color (both faces), outerColor (outside
-// face only, exterior walls), height, thickness (e.g. for garden fences), openings[].
+// face only, exterior walls), paint ({pos, neg}: one colour per face), height, thickness (e.g. for garden fences), openings[].
 // Opening options: type window|door, at, width, sill, top, panes (window
 // mullions), leaf (door colour), transom (glass above a door); inside doors:
 // open (degrees it stands open, default 55), hinge ('end'), flip (other side).
@@ -71,7 +80,13 @@ function buildWall(w, cfg, center) {
   if (normal.dot(mid) < 0) normal.negate();
   const outSign = normal.dot(new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle))) > 0 ? 1 : -1;
   const outer = w.exterior && (w.outerColor ?? cfg.outerColor);
-  const skinMat = outer ? colored(outer) : null;
+  // skins: a thin coat of colour on one face. paint.pos is the face toward
+  // (-dz, dx) of the wall direction, paint.neg the other one; paint beats outerColor.
+  const skinMat = outer ? colored(outer) : null; // also used for the slab-edge plinth
+  const skins = [];
+  const painted = (side) => w.paint?.[side];
+  if (outer && !painted(outSign > 0 ? 'pos' : 'neg')) skins.push({ mat: skinMat, sign: outSign });
+  for (const [side, sign] of [['pos', 1], ['neg', -1]]) if (painted(side)) skins.push({ mat: colored(painted(side)), sign });
 
   const seg = (x0, x1, y0, y1, material = wallMat, depth = t, parent = full) => {
     if (x1 - x0 < 1e-3 || y1 - y0 < 1e-3) return;
@@ -80,28 +95,46 @@ function buildWall(w, cfg, center) {
     m.castShadow = material !== glassMat;
     m.receiveShadow = true;
     parent.add(m);
-    if (skinMat && material === wallMat && parent === full) {
-      const skin = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, 0.02), skinMat);
-      skin.position.set((x0 + x1) / 2, (y0 + y1) / 2, outSign * (t / 2 + 0.01));
-      parent.add(skin);
+    if (material === wallMat && parent === full) {
+      for (const { mat, sign } of skins) {
+        const skin = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, 0.02), mat);
+        skin.position.set((x0 + x1) / 2, (y0 + y1) / 2, sign * (t / 2 + 0.01));
+        skin.receiveShadow = true;
+        parent.add(skin);
+      }
     }
   };
   const bar = (x0, x1, y0, y1) => seg(x0, x1, y0, y1, frameMat, t + 0.04);
 
-  let cursor = -t / 2;
   const openings = [...(w.openings ?? [])].sort((a, b) => a.at - b.at);
+  // The solid wall is cut into columns at every opening edge, so openings may
+  // overlap sideways and sit on top of each other (a transom window above a window).
+  const voidOf = (o) => {
+    const door = o.type === 'door', top = Math.min(o.top ?? 2.1, h);
+    const glassTop = door && o.transom && h - top > 0.4 ? h - 0.2 : top;
+    return { x0: o.at, x1: o.at + o.width, y0: door ? 0 : Math.min(o.sill ?? 0.9, top), y1: glassTop };
+  };
+  const voids = openings.map(voidOf);
+  const xs = [...new Set([-t / 2, len + t / 2, ...voids.flatMap((v) => [v.x0, v.x1])].map((x) => Math.min(len + t / 2, Math.max(-t / 2, x))))].sort((a, b) => a - b);
+  for (let k = 0; k + 1 < xs.length; k++) {
+    const a = xs[k], b = xs[k + 1];
+    if (b - a < 1e-3) continue;
+    let y = 0;
+    for (const v of voids.filter((v) => v.x0 <= a + 1e-6 && v.x1 >= b - 1e-6).sort((p, q) => p.y0 - q.y0)) {
+      if (v.y0 > y) seg(a, b, y, v.y0);
+      y = Math.max(y, v.y1);
+    }
+    if (y < h) seg(a, b, y, h);
+  }
   for (const o of openings) {
     const x0 = o.at, x1 = o.at + o.width;
     const door = o.type === 'door';
     const sill = door ? 0 : o.sill ?? 0.9;
     const top = Math.min(o.top ?? 2.1, h);
-    seg(cursor, x0, 0, h);
-    seg(x0, x1, 0, sill);
     if (door && o.transom && h - top > 0.4) {
       seg(x0, x1, top, h - 0.2, glassMat, 0.03);
-      seg(x0, x1, h - 0.2, h);
       bar(x0, x1, h - 0.2 - FRAME, h - 0.2);
-    } else seg(x0, x1, top, h);
+    }
 
     if (top > sill && w.exterior) {
       // frame
@@ -118,7 +151,7 @@ function buildWall(w, cfg, center) {
         bar(x - FRAME / 2, x + FRAME / 2, sill, top);
       }
     }
-    if (door && o.leaf) seg(x0 + FRAME, x1 - FRAME, 0, top - FRAME, colored(o.leaf), 0.05);
+    if (door && o.leaf && w.exterior) seg(x0 + FRAME, x1 - FRAME, 0, top - FRAME, colored(o.leaf), 0.05);
     else if (door && !w.exterior) {
       // Inside doors stand half open, hinged at the start of the opening and
       // swinging to the side the plan editor draws. `open` (degrees) and
@@ -126,8 +159,9 @@ function buildWall(w, cfg, center) {
       const leafH = Math.min(top, h);
       const leaf = new THREE.Mesh(
         new THREE.BoxGeometry(o.width - 0.04, leafH, 0.04),
-        colored(cfg.doorColor ?? '#d8b78c')
+        colored(o.leaf ?? cfg.doorColor ?? DOOR_WHITE)
       );
+      addLever(leaf, o.width, leafH, o.hinge === 'end' ? -1 : 1);
       // hinge: 'end' hangs it on the far side of the opening; flip: true makes
       // it swing to the other side of the wall
       const dir = o.hinge === 'end' ? -1 : 1;
@@ -139,9 +173,7 @@ function buildWall(w, cfg, center) {
       hinge.add(leaf);
       full.add(hinge);
     }
-    cursor = x1;
   }
-  seg(cursor, len + t / 2, 0, h);
 
   if (skinMat) {
     // The outside finish also covers the edge of the floor slab underneath.
@@ -159,6 +191,23 @@ function buildWall(w, cfg, center) {
   return g;
 }
 
+// Flat white door leaves get a grey lever handle on both faces, on the free edge.
+const DOOR_WHITE = '#f3f0e8';
+const LEVER = new THREE.MeshStandardMaterial({ color: '#8c9094', metalness: 0.7, roughness: 0.3 });
+function addLever(leaf, width, leafH, dir) {
+  const free = dir * ((width - 0.04) / 2 - 0.07), y = 1.0 - leafH / 2;
+  for (const side of [1, -1]) {
+    const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.008, 16), LEVER);
+    rose.rotation.x = Math.PI / 2;
+    rose.position.set(free, y, side * 0.024);
+    const stem = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.018, 0.03), LEVER);
+    stem.position.set(free, y, side * 0.035);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.018, 0.018), LEVER);
+    bar.position.set(free - dir * 0.05, y, side * 0.048);
+    leaf.add(rose, stem, bar);
+  }
+}
+
 async function buildFloor(floor, level, house, objects) {
   const cfg = { ...house.walls, ...floor.walls };
   const group = new THREE.Group();
@@ -170,11 +219,12 @@ async function buildFloor(floor, level, house, objects) {
   const cutaways = [];
   for (const w of floor.wallList ?? []) {
     const wall = buildWall(w, cfg, center);
+    wall.userData.isWall = true;
     if (wall.userData.cutaway) cutaways.push(wall.userData.cutaway);
     group.add(wall);
   }
 
-  const rec = { id: floor.id, name: floor.name, outsideOnly: !!floor.outsideOnly, level, group, cutaways, center, facade: [] };
+  const rec = { id: floor.id, name: floor.name, outsideOnly: !!floor.outsideOnly, level, group, cutaways, center, cfg, facade: [] };
   await Promise.all((floor.objects ?? []).map((def) => placeObject(rec, def, objects)));
   return rec;
 }
@@ -283,5 +333,20 @@ export async function buildHouse(house) {
     objects.delete(id);
   }
 
-  return { root, objects, floors, setView, update, settle, addObject, removeObject, get view() { return view; } };
+  // replace all walls of one floor (the plan editor's "3D beside" pane uses this
+  // when you move a wall, door or window), keeping the camera and everything else
+  function rebuildWalls(floorId, wallList) {
+    const f = floors.find((x) => x.id === floorId);
+    if (!f) return;
+    for (const child of [...f.group.children]) if (child.userData.isWall) child.removeFromParent();
+    f.cutaways.length = 0;
+    for (const w of wallList ?? []) {
+      const wall = buildWall(w, f.cfg, f.center);
+      wall.userData.isWall = true;
+      if (wall.userData.cutaway) f.cutaways.push(wall.userData.cutaway);
+      f.group.add(wall);
+    }
+  }
+
+  return { root, objects, floors, setView, update, settle, addObject, removeObject, rebuildWalls, get view() { return view; } };
 }

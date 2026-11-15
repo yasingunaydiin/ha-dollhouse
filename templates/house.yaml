@@ -1,0 +1,42 @@
+# The house model. It knows nothing about Home Assistant.
+# This is the empty lot every new copy of the app starts with; the app copies
+# it to data/house.yaml on first start and saves all your changes there.
+#
+# Units are metres. Coordinates are [x, z] on the floor plan (y is up):
+# x runs left to right, z runs from the back to the front (street side).
+# Objects reference a model by name (see src/models/defaults.js) or by a
+# .glb file path relative to public/house/ (e.g. model: models/sofa.glb).
+#
+# To start building: give the ground floor some rooms, for example
+#   - {id: living, name: Living Room, rect: [2, 4, 5, 4], floor: "#c9a47a"}
+# (rect is [x, z, width, depth]), then draw the walls, doors and windows and
+# place furniture in the app's Plan editor. Add more floors as further items
+# under `floors:`; the first one is the ground floor.
+
+name: Home
+# compass direction the street side of the house faces (0 = north, 90 = east,
+# 180 = south, 270 = west); used to put the sun and moon in the right place
+frontBearing: 180
+
+view:
+  azimuth: -45 # camera direction, degrees
+  elevation: 38
+  size: 17 # metres visible vertically
+  default: ground
+
+walls:
+  height: 2.6
+  interiorHeight: 1.25 # interior walls are cut low, dollhouse style
+  exteriorThickness: 0.2
+  interiorThickness: 0.1
+  color: "#efe6d8"
+floorHeight: 2.9 # floor-to-floor
+
+floors:
+  - id: ground
+    name: Ground floor
+    rooms:
+      # outdoor: true marks ground that is not part of the house itself
+      - {id: lot, name: Lot, rect: [0, 0, 10, 16], floor: "#7fae5d", outdoor: true}
+    wallList: []
+    objects: []

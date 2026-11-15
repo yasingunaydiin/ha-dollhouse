@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { parse } from 'yaml';
 import './style.css';
 import './models/defaults.js';
+import './models/ikea.js';
+import './models/tech.js';
+import './models/shelf.js';
+import './models/decor.js';
 import { createScene } from './scene.js';
 import { buildHouse } from './house/builder.js';
 import { Store } from './state/store.js';
@@ -16,11 +20,13 @@ import { createPlanner } from './planner.js';
 const loadYaml = async (path) => parse(await (await fetch(path)).text());
 
 const [house, links] = await Promise.all([
-  loadYaml('/house/house.yaml'),
-  loadYaml('/house/links.yaml'),
+  loadYaml('/api/house/house.yaml'),
+  loadYaml('/api/house/links.yaml'),
 ]);
 const linked = new Set(Object.values(links));
 const query = new URLSearchParams(location.search);
+const embedded = query.has('embed'); // the planner's "3D beside" pane: just the house, no controls
+if (embedded) document.body.classList.add('embed');
 
 const world = createScene(document.getElementById('app'), house.view, house.frontBearing);
 const built = await buildHouse(house);
@@ -53,6 +59,31 @@ editButton.addEventListener('click', () => {
   editButton.classList.toggle('active', editor.enabled);
 });
 
+// --- export / import: the whole house (layout, furniture, entity links) as one file
+document.getElementById('export').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = '/api/house/export';
+  a.download = '';
+  a.click();
+});
+const importFile = document.getElementById('import-file');
+document.getElementById('import').addEventListener('click', () => importFile.click());
+importFile.addEventListener('change', async () => {
+  const file = importFile.files[0];
+  importFile.value = '';
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const floors = (parse(data.house ?? '')?.floors ?? []).length;
+    if (!confirm(`Replace the current house with "${data.name ?? file.name}" (${floors} floors)?\n\nThe current house is kept as a backup on the server.`)) return;
+    const res = await fetch('/api/house/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    if (!res.ok) throw new Error((await res.json()).error);
+    location.reload();
+  } catch (err) {
+    say(`Not imported: ${err instanceof SyntaxError ? 'this is not a House Twin export file' : err.message}`);
+  }
+});
+
 // --- floor-plan editor: walls, doors, windows and furniture in 2D
 const planner = createPlanner({ house, say });
 document.getElementById('plan').addEventListener('click', () => {
@@ -60,6 +91,49 @@ document.getElementById('plan').addEventListener('click', () => {
   editButton.classList.remove('active');
   planner.open(built.view === 'outside' ? lastFloor : built.view);
 });
+
+// --- "3D beside" pane: the planner sends each saved edit; moving, turning and
+// resizing objects is applied in place, anything else reloads this pane
+if (embedded) {
+  window.addEventListener('message', async (e) => {
+    if (e.origin !== location.origin || e.data?.type !== 'twin-sync') return;
+    const { floor: id, wallList, objects } = e.data;
+    const f = house.floors.find((x) => x.id === id);
+    if (!f) return location.reload();
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    if (!same(f.wallList ?? [], wallList)) {
+      // walls, doors, windows or paint changed: rebuild just this floor's walls
+      built.rebuildWalls(id, wallList);
+      built.settle(world.cameraDir);
+      f.wallList = wallList;
+    }
+    const old = new Map((f.objects ?? []).map((o) => [o.id, o]));
+    const now = new Map(objects.map((o) => [o.id, o]));
+    // objects that are gone, or were swapped for another model / options: remove them
+    for (const [oid, o] of old) {
+      const n = now.get(oid);
+      if (!n || n.model !== o.model || !same(n.params, o.params) || !same(n.kind, o.kind)) built.removeObject(oid);
+    }
+    // new objects: add them in place
+    for (const [oid, n] of now) if (!built.objects.has(oid)) await built.addObject(id, structuredClone(n));
+    // everything else: move, turn and resize in place
+    for (const def of objects) {
+      const entry = built.objects.get(def.id);
+      if (!entry) continue;
+      const o3 = entry.object3d;
+      const [x, y, z] = def.at.length === 3 ? def.at : [def.at[0], 0, def.at[1]];
+      o3.position.set(x, y, z);
+      o3.rotation.y = THREE.MathUtils.degToRad(def.rot ?? 0);
+      // scale = the model's own scale (params.scale) times the plan editor's stretch
+      const prev = entry.def.stretch ?? [1, 1, 1], next = def.stretch ?? [1, 1, 1];
+      o3.scale.set((o3.scale.x / prev[0]) * next[0], (o3.scale.y / prev[1]) * next[1], (o3.scale.z / prev[2]) * next[2]);
+      Object.assign(entry.def, { at: def.at, rot: def.rot, stretch: def.stretch });
+      if (def.rot === undefined) delete entry.def.rot;
+      if (def.stretch === undefined) delete entry.def.stretch;
+    }
+    f.objects = objects;
+  });
+}
 
 // --- views: outside, or one floor cut open
 const raycaster = new THREE.Raycaster();
@@ -84,7 +158,7 @@ function showView(id, { fromZoom = false } = {}) {
     world.zoomTo(built.view === 'outside' ? Math.min(zoom, 0.8) : Math.max(zoom, 1.2));
   }
   for (const b of viewBar.querySelectorAll('[data-view]')) b.classList.toggle('active', b.dataset.view === built.view);
-  localStorage.setItem('twin.view', built.view);
+  if (!embedded) localStorage.setItem('twin.view', built.view);
 }
 
 function floorUnderPointer() {
@@ -171,7 +245,7 @@ async function useSource(next) {
   modeButton.classList.toggle('real', source === ha);
   if (source === sim) modeButton.textContent = 'Simulated';
   dayNight.hidden = source !== sim;
-  localStorage.setItem('twin.mode', source.mode);
+  if (!embedded) localStorage.setItem('twin.mode', source.mode);
 }
 
 modeButton.addEventListener('click', () => useSource(source === ha ? sim : ha));

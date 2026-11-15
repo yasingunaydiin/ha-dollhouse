@@ -1,0 +1,8 @@
+# Links: which Home Assistant entity each object in the house is.
+# Left side = object id from house.yaml, right side = entity_id, for example
+#   living_tv: media_player.living_room_tv
+# Real mode shows the real state of these entities; simulated mode carries on
+# from it and fakes any entity that doesn't exist in Home Assistant.
+
+# Scene-level bindings
+_sun: sun.sun

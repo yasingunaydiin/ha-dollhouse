@@ -1,5 +1,5 @@
 // Edit mode: select, drag, rotate, delete and add objects. Every change is
-// saved straight into house.yaml through the dev server, and can be undone
+// saved straight into the house file (data/house.yaml) through the server, and can be undone
 // (Ctrl/Cmd+Z) and redone (Ctrl/Cmd+Shift+Z or Ctrl+Y) until the page reloads.
 import * as THREE from 'three';
 import { listModels } from './models/registry.js';

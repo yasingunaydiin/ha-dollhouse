@@ -526,17 +526,7 @@ registerModel('stepping_stones', ({ count = 8, spacing = 0.95 } = {}) => {
 });
 
 // brick garage at the end of the garden; its front faces +z, door opening on the right
-registerModel('garage', ({ width = 6.5, depth = 3, height = 2.5, door = 2.3 } = {}) => {
-  const g = group(
-    box(width, height, depth, '#9c5a45'),
-    box(width + 0.3, 0.12, depth + 0.3, '#3d3a38', 0, height, 0),
-    box(door, height - 0.4, 0.05, '#1f1f22', width / 2 - door / 2 - 0.2, 0, depth / 2 + 0.01),
-    box(width + 0.3, 0.14, 0.06, '#f1efe9', 0, height - 0.12, depth / 2 + 0.16)
-  );
-  const n = 4, pw = 0.8;
-  for (let i = 0; i < n; i++) g.add(box(pw, 1.5, 0.04, '#b98a5c', -width / 2 + 0.6 + i * (pw + 0.12), 0.5, depth / 2 + 0.02));
-  return g;
-});
+// the garage lives in decor.js (brick walls, window strip, open doorway, corrugated roof)
 
 // ───────────────────────── frontyard
 registerModel('bush', ({ size = 0.55, flower } = {}) => {
@@ -823,10 +813,30 @@ registerModel('winder_stairs', ({ width = 0.95, rise = 2.9, straight = 7, going 
   const g = group();
   const m = mat(color, { side: THREE.DoubleSide });
   winderShapes(W, winders, [W / 2, -W / 2], Math.PI / 2).forEach((s, i) => g.add(tread(s, r, (i + 1) * r, m)));
-  for (let i = 0; i < straight; i++)
-    g.add(box(W, r, going, color, 0, (winders + i) * r, -W / 2 - (i + 0.5) * going));
+  const nose = new THREE.Color(color).multiplyScalar(1.7).getStyle();
+  for (let i = 0; i < straight; i++) {
+    const top = (winders + i + 1) * r, zc = -W / 2 - (i + 0.5) * going;
+    g.add(box(W, r, going, color, 0, (winders + i) * r, zc, 0.008));
+    // rounded stair nosing along the front lip, a slightly lighter strip of carpet
+    g.add(box(W, 0.016, 0.03, nose, 0, top - 0.012, zc + going / 2 - 0.012, 0.006));
+    // white side skirts closing the flight on both sides
+    for (const sx of [-1, 1]) g.add(box(0.025, top, going, '#ecebe5', sx * (W / 2 + 0.0125), 0, zc));
+  }
   const end = -W / 2 - straight * going;
   winderShapes(W, topWinders, [W / 2, end], Math.PI).forEach((s, i) => g.add(tread(s, r, (winders + straight + i + 1) * r, m)));
+  // handrail on the open (+x) side: wooden rail on slim posts with white balusters, like the railing upstairs
+  const rx = W / 2 + 0.03, railH = 0.9;
+  const p0 = new THREE.Vector3(rx, (winders + 1) * r + railH, -W / 2 - 0.5 * going);
+  const p1 = new THREE.Vector3(rx, (winders + straight) * r + railH, -W / 2 - (straight - 0.5) * going);
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, p0.distanceTo(p1), 14), mat('#c9a06a', { roughness: 0.5 }));
+  rail.position.copy(p0).add(p1).multiplyScalar(0.5);
+  rail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p1.clone().sub(p0).normalize());
+  g.add(rail);
+  for (let i = 0; i < straight; i++) {
+    const top = (winders + i + 1) * r, zc = -W / 2 - (i + 0.5) * going;
+    const post = i === 0 || i === straight - 1;
+    g.add(box(post ? 0.05 : 0.018, railH - 0.02, post ? 0.05 : 0.018, post ? '#c9a06a' : '#f2f1ec', rx, top, zc));
+  }
   return g;
 });
 
@@ -844,6 +854,26 @@ registerModel('stairwell_top', ({ width = 0.95, going = 0.19, steps = 4, winders
     strip.material = shade(winders + i);
     g.add(strip);
   }
+  const total = winders + steps + 1;
+  const nose = (i) => new THREE.Color('#34343a').multiplyScalar((1 - i / total) * 1.9).getStyle();
+  // nosing on the downhill (+z) edge of every straight tread, and the shadowed riser under it
+  for (let i = 0; i < steps; i++) {
+    const zf = W / 2 + (i + 1) * going;
+    const fade = 1 - (i + 1) / total;
+    g.add(box(W, 0.004, 0.028, nose(winders + i), 0, 0.012 - i * 0.002, zf - 0.03, 0.002));
+    g.add(box(W, 0.004, 0.035, new THREE.Color('#0b0b0d').multiplyScalar(0.6 + fade * 0.4).getStyle(), 0, 0.008 - i * 0.002, zf + 0.0175));
+  }
+  // winder treads: a lighter edge line round each wedge so the fan reads as separate steps
+  const edge = new THREE.LineBasicMaterial({ color: '#5a5a62' });
+  winderShapes(W, winders, [W / 2, W / 2], Math.PI).reverse().forEach((sh, i) => {
+    const pts = sh.getPoints().map((p) => new THREE.Vector3(p.x, 0.026 - i * 0.002, p.y));
+    g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), edge));
+  });
+  // white trim framing the opening along the open (+x) side and the far end
+  const run = steps * going;
+  g.add(box(0.035, 0.03, run + W / 2, '#f1efe9', W / 2 + 0.0175, 0, (W / 2 + run) / 2 + W / 4 - W / 4 + 0));
+  g.children[g.children.length - 1].position.z = (W / 2 + W / 2 + run) / 2;
+  g.add(box(W + 0.07, 0.03, 0.035, '#f1efe9', 0, 0, W / 2 + run + 0.0175));
   g.children.forEach((c) => (c.userData.noShadow = true));
   return g;
 });
@@ -944,16 +974,7 @@ registerModel('corner_desk', ({ a = 1.8, b = 1.2, depth = 0.8, returnDepth = 0.6
     leg(0.14, 0.14, -1, -1), leg(1.0, d - 0.12, 0, 1),
     leg(0.12, b - 0.12, -1, 0), leg(rd - 0.12, b - 0.12, 1, 0)
   );
-  const lit = (m, color) => {
-    m.material = mat('#15171a', { emissive: color, emissiveIntensity: 0.55, roughness: 0.4 });
-    return m;
-  };
   // the monitors are separate objects (msi_mag342, samsung_c24rg50)
-  g.add(
-    box(0.32, 0.015, 0.22, '#2a2b2e', 0.5, 0.75, 0.55),
-    lit(tilted(box(0.32, 0.2, 0.012, '#15171a', 0.5, 0.76, 0.43), -0.25), '#7fc89a'),
-    box(0.4, 0.015, 0.13, '#2a2b2e', 1.25, 0.75, 0.55)
-  );
   return g;
 });
 
@@ -1461,5 +1482,98 @@ registerModel('calico_cat', () => {
     leg.position.set(x, 0.155, z);
     g.add(leg);
   });
+  return g;
+});
+
+// ───────────── kitchen, modelled on the photos: cream gloss units, steel bar
+// handles, dark marble worktop. All face +z; the worktop is a separate `box`.
+const CREAM = '#efe9dc';
+const STEEL = '#b9bdc0';
+const bar = (w, y, x = 0, z = 0.31) => box(w, 0.012, 0.022, STEEL, x, y, z);
+
+// base unit, 0.86 tall without the worktop. type: doors | drawers | sink | oven | corner
+registerModel('kitchen_unit', ({ width = 0.6, type = 'doors', height = 0.86 } = {}) => {
+  const g = group(
+    box(width - 0.004, 0.08, 0.5, '#4a3f36', 0, 0, -0.03),
+    box(width - 0.004, height - 0.08, 0.6, CREAM, 0, 0.08, 0)
+  );
+  if (type === 'drawers') {
+    for (const y of [0.1, 0.35, 0.6]) g.add(box(width - 0.03, 0.005, 0.01, '#cfc8b8', 0, y + 0.22, 0.303));
+    for (const y of [0.3, 0.55, 0.78]) g.add(bar(width * 0.55, y));
+  } else if (type === 'oven') {
+    g.add(box(width - 0.04, 0.5, 0.02, STEEL, 0, 0.12, 0.305));
+    g.add(box(width - 0.14, 0.26, 0.012, '#1a1b1d', 0, 0.2, 0.318));
+    g.add(bar(width - 0.12, 0.5, 0, 0.345));
+    // gas hob on top, two pans
+    g.add(box(0.58, 0.012, 0.5, '#2a2b2d', 0, height + 0.04, 0));
+    for (const [x, z] of [[-0.14, -0.1], [0.14, -0.1], [-0.14, 0.12], [0.14, 0.12]])
+      g.add(cyl(0.045, 0.05, 0.02, '#151515', x, height + 0.052, z, 14));
+    g.add(cyl(0.13, 0.11, 0.045, '#2a2a2c', -0.14, height + 0.06, -0.1));
+  } else {
+    g.add(box(0.004, height - 0.12, 0.01, '#cfc8b8', 0, 0.1, 0.303));
+    g.add(bar(width * 0.5, height - 0.1));
+    if (type === 'sink') {
+      g.add(cyl(0.2, 0.2, 0.012, '#aeb6b8', 0, height + 0.04, 0, 28));
+      g.add(cyl(0.012, 0.012, 0.28, '#9aa2a4', 0, height + 0.04, -0.2, 8));
+    }
+  }
+  return g;
+});
+
+registerModel('kitchen_wall_cab', ({ width = 0.6, height = 0.7, depth = 0.34, hood = false } = {}) => {
+  const g = group(box(width - 0.004, height, depth, CREAM, 0, 0, 0));
+  g.add(box(0.004, height - 0.1, 0.01, '#cfc8b8', 0, 0.05, depth / 2 + 0.003));
+  g.add(bar(width * 0.5, 0.06, 0, depth / 2 + 0.01));
+  if (hood) g.add(box(width - 0.004, 0.025, depth + 0.1, '#e4ddcf', 0, 0, 0.05));
+  return g;
+});
+
+// tall column: kind fridge | pantry
+registerModel('kitchen_tall', ({ width = 0.6, height = 2.3, kind = 'pantry' } = {}) => {
+  const g = group(
+    box(width - 0.004, 0.08, 0.5, '#4a3f36', 0, 0, -0.03),
+    box(width - 0.004, height - 0.08, 0.6, CREAM, 0, 0.08, 0)
+  );
+  const lines = kind === 'fridge' ? [0.62, 1.55, 1.95] : [0.7, 1.45];
+  for (const y of lines) g.add(box(width - 0.03, 0.005, 0.01, '#cfc8b8', 0, y, 0.303));
+  const hy = kind === 'fridge' ? [0.45, 1.2, height - 0.12] : [0.9, height - 0.12];
+  for (const y of hy) g.add(bar(width * 0.4, y, 0, 0.312));
+  return g;
+});
+
+registerModel('dishwasher', () =>
+  group(
+    box(0.596, 0.84, 0.58, '#b4b9bc', 0, 0, 0, 0.01),
+    box(0.5, 0.05, 0.01, '#8d9396', 0, 0.74, 0.292),
+    box(0.4, 0.012, 0.02, '#6f7478', 0, 0.68, 0.3)
+  )
+);
+
+registerModel('trash_can', () =>
+  group(
+    box(0.4, 0.62, 0.3, '#2a2b2e', 0, 0, 0, 0.07),
+    box(0.4, 0.07, 0.3, '#1d1e20', 0, 0.62, 0, 0.05),
+    box(0.3, 0.012, 0.02, '#4a4b4f', 0, 0.55, 0.15)
+  )
+);
+
+registerModel('coffee_machine', ({ color = '#b3342c' } = {}) =>
+  group(
+    box(0.2, 0.26, 0.3, color, 0, 0, 0, 0.03),
+    box(0.1, 0.02, 0.1, '#222', 0, 0.26, 0.06),
+    box(0.14, 0.03, 0.12, '#222', 0, 0, 0.08)
+  )
+);
+
+// ceiling track with three spots, lying along x; light_anchor under the middle spot
+registerModel('track_light', ({ height = 2.6 } = {}) => {
+  const g = group(box(1.0, 0.025, 0.04, WHITE, 0, height - 0.025, 0));
+  for (const x of [-0.35, 0, 0.35]) {
+    const s = cyl(0.04, 0.04, 0.16, WHITE, x, height - 0.2, 0, 14);
+    s.rotation.z = x * 0.8;
+    g.add(s);
+  }
+  g.add(glow(cyl(0.035, 0.035, 0.01, WHITE, 0, height - 0.285, 0, 14)));
+  g.add(anchor(0, height - 0.3, 0));
   return g;
 });
