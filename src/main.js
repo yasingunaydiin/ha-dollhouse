@@ -23,6 +23,11 @@ import { createWeather, fetchOpenMeteo, CONDITIONS } from './weather.js';
 import houseTemplate from '../templates/house.yaml?raw';
 import linksTemplate from '../templates/links.yaml?raw';
 let staticSite = false;
+const texts = {}; // the yaml as loaded, kept for exporting from the static site
+const STORED = 'twin.static-house'; // a house imported into this browser (static site only)
+function storedHouse() {
+  try { return JSON.parse(localStorage.getItem(STORED)); } catch { return null; }
+}
 async function loadYaml(name, fallback) {
   try {
     const res = await fetch(`${import.meta.env.BASE_URL}api/house/${name}`);
@@ -30,7 +35,9 @@ async function loadYaml(name, fallback) {
     if (text && !text.trimStart().startsWith('<')) return parse(text);
   } catch {}
   staticSite = true;
-  return parse(fallback);
+  const mine = storedHouse();
+  texts[name] = (name === 'house.yaml' ? mine?.house : mine?.links) ?? fallback;
+  return parse(texts[name]);
 }
 
 const [house, links] = await Promise.all([
@@ -76,8 +83,14 @@ editButton.addEventListener('click', () => {
 // --- export / import: the whole house (layout, furniture, entity links) as one file
 document.getElementById('export').addEventListener('click', () => {
   const a = document.createElement('a');
-  a.href = '/api/house/export';
-  a.download = '';
+  if (staticSite) {
+    const data = { format: 'house-twin', version: 1, exported: new Date().toISOString(), name: house.name ?? 'Home', house: texts['house.yaml'], links: texts['links.yaml'] };
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    a.download = `house-twin-${data.exported.slice(0, 10)}.json`;
+  } else {
+    a.href = '/api/house/export';
+    a.download = '';
+  }
   a.click();
 });
 const importFile = document.getElementById('import-file');
@@ -89,9 +102,16 @@ importFile.addEventListener('change', async () => {
   try {
     const data = JSON.parse(await file.text());
     const floors = (parse(data.house ?? '')?.floors ?? []).length;
-    if (!confirm(`Replace the current house with "${data.name ?? file.name}" (${floors} floors)?\n\nThe current house is kept as a backup on the server.`)) return;
-    const res = await fetch('/api/house/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-    if (!res.ok) throw new Error((await res.json()).error);
+    if (!confirm(`Replace the current house with "${data.name ?? file.name}" (${floors} floors)?\n\n${staticSite ? 'It is kept in this browser only.' : 'The current house is kept as a backup on the server.'}`)) return;
+    if (staticSite) {
+      // no server here: keep the imported house in this browser only
+      if (data?.format !== 'house-twin' || typeof data.house !== 'string' || typeof data.links !== 'string') throw new Error('this is not a House Twin export file');
+      if (!Array.isArray(parse(data.house)?.floors)) throw new Error('the house in this file has no floors');
+      localStorage.setItem(STORED, JSON.stringify({ house: data.house, links: data.links }));
+    } else {
+      const res = await fetch('/api/house/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error((await res.json()).error);
+    }
     location.reload();
   } catch (err) {
     say(`Not imported: ${err instanceof SyntaxError ? 'this is not a House Twin export file' : err.message}`);
