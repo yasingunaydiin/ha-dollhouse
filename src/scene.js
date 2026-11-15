@@ -17,7 +17,7 @@ const NIGHT = {
 // frontBearing: compass direction (degrees) the front of the house (+z) faces
 export function createScene(container, view = {}, frontBearing = 180) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -52,7 +52,7 @@ export function createScene(container, view = {}, frontBearing = 180) {
   const sun = new THREE.DirectionalLight(SUN.high.clone(), SUN.intensity);
   sun.position.set(-7, 20, 11);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(4096, 4096);
+  sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 90 });
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
