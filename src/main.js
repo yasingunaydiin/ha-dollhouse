@@ -16,6 +16,7 @@ import { createEditor } from './editor.js';
 import { createClimateDialog } from './dialogs/climate.js';
 import { createCameraDialog } from './dialogs/camera.js';
 import { createPlanner } from './planner.js';
+import { createWeather, fetchOpenMeteo, CONDITIONS } from './weather.js';
 
 const loadYaml = async (path) => parse(await (await fetch(path)).text());
 
@@ -245,6 +246,8 @@ async function useSource(next) {
   modeButton.classList.toggle('real', source === ha);
   if (source === sim) modeButton.textContent = 'Simulated';
   dayNight.hidden = source !== sim;
+  if (source === sim) weather.set(weatherPicker.value);
+  else refreshWeather();
   if (!embedded) localStorage.setItem('twin.mode', source.mode);
 }
 
@@ -275,6 +278,52 @@ function applySun() {
 }
 store.subscribe((id) => id === links._sun && applySun());
 
+// --- weather over the plot
+const houseBox = new THREE.Box3();
+for (const f of house.floors) {
+  for (const { rect: [x, z, w, d], outdoor } of f.rooms ?? []) {
+    if (!outdoor) houseBox.expandByPoint(new THREE.Vector3(x, 0, z)).expandByPoint(new THREE.Vector3(x + w, 0, z + d));
+  }
+}
+if (houseBox.isEmpty()) houseBox.set(new THREE.Vector3(), new THREE.Vector3());
+houseBox.min.add(built.root.position);
+houseBox.max.add(built.root.position);
+houseBox.max.y = house.floors.length * house.floorHeight + 0.5;
+const weather = createWeather({ scene: world.scene, world, houseBounds: houseBox });
+
+const weatherPicker = document.getElementById('weather');
+weatherPicker.innerHTML = CONDITIONS.map((c) => `<option>${c}</option>`).join('');
+weatherPicker.value = 'clear';
+weatherPicker.addEventListener('change', () => weather.set(weatherPicker.value));
+
+// Real mode: the Home Assistant weather entity if there is one, otherwise the
+// real conditions at the house's coordinates (Open-Meteo, refreshed every 10 min).
+let weatherTimer;
+function haWeather() {
+  const id = links._weather ?? [...store.states.keys()].find((k) => k.startsWith('weather.'));
+  return id && store.get(id);
+}
+function coordinates() {
+  const a = store.get('zone.home')?.attributes;
+  const loc = house.location ?? (a && { latitude: a.latitude, longitude: a.longitude });
+  return loc?.latitude != null && loc?.longitude != null ? loc : null;
+}
+async function refreshWeather() {
+  clearTimeout(weatherTimer);
+  if (source !== ha) return;
+  const entity = haWeather();
+  if (entity) weather.fromHa(entity.state);
+  else {
+    const loc = coordinates();
+    const now = loc && (await fetchOpenMeteo(loc.latitude, loc.longitude));
+    if (now) weather.fromWmo(now.code);
+  }
+  weatherTimer = setTimeout(refreshWeather, 10 * 60 * 1000);
+}
+store.subscribe((id, s) => {
+  if (source === ha && s && id === haWeather()?.entity_id) weather.fromHa(s.state);
+});
+
 // --- loop
 const clock = new THREE.Clock();
 world.renderer.setAnimationLoop(() => {
@@ -283,6 +332,7 @@ world.renderer.setAnimationLoop(() => {
   built.update(world.cameraDir, dt);
   behaviors.update(dt);
   editor.update();
+  weather.update(dt, clock.elapsedTime);
   world.update(dt);
 });
 

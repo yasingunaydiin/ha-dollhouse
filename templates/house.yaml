@@ -14,6 +14,10 @@
 # under `floors:`; the first one is the ground floor.
 
 name: Home
+# where the house is, for real-time weather over the plot. Optional when Home
+# Assistant knows (its home zone is used); the weather is then fetched from
+# Open-Meteo for these coordinates unless a weather.* entity exists.
+# location: {latitude: 52.37, longitude: 4.90}
 # compass direction the street side of the house faces (0 = north, 90 = east,
 # 180 = south, 270 = west); used to put the sun and moon in the right place
 frontBearing: 180

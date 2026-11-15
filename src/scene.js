@@ -98,8 +98,13 @@ export function createScene(container, view = {}, frontBearing = 180) {
     sky_.dir.set(-Math.sin(a) * Math.cos(e), Math.sin(e), Math.cos(a) * Math.cos(e));
   }
 
+  // weather: cloud cover dims the sun and softens shadows; a flash is lightning
+  let cloud = 0, flash = 0;
+
   return {
     renderer, scene, camera, controls,
+    setCloud(c) { cloud = c; },
+    setFlash(f) { flash = f; },
     // Sun position as Home Assistant reports it (degrees). Below the horizon
     // the moon takes over; HA doesn't report where the moon is, so it is
     // simply placed opposite the sun.
@@ -172,7 +177,15 @@ export function createScene(container, view = {}, frontBearing = 180) {
         sun.color.lerp(sky_.color, k);
         sky_.settled = sun.position.distanceTo(sky_.dir.clone().multiplyScalar(45)) < 0.02 && Math.abs(sun.intensity - sky_.intensity) < 0.005;
       }
+      // overcast sky: weaker sun (so fainter shadows), a little more ambient light
+      const dim = 1 - 0.7 * cloud;
+      const base = sun.intensity;
+      sun.intensity = base * dim + flash * 4;
+      sky.intensity += cloud * 0.25 + flash * 1.5;
+      ground.material.opacity = 0.22 * dim;
       renderer.render(scene, camera);
+      sun.intensity = base;
+      sky.intensity -= cloud * 0.25 + flash * 1.5;
     },
   };
 }

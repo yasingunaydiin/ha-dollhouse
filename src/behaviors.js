@@ -341,6 +341,20 @@ kinds.pet = {
   },
 };
 
+// Street lamps: no entity of their own, they come on when the sun is down.
+kinds.streetlight = {
+  ...kinds.light,
+  setup(entry) {
+    kinds.light.setup(entry);
+    const { lamp, glows } = entry.light;
+    lamp.distance = 18; // reach the road and pavement from up high
+    lamp.decay = 1.2;
+    glows.forEach((g) => (g.userData.boost = 3));
+  },
+  apply() {},
+  click() {},
+};
+
 export function attachBehaviors(objects, links, store, context = null) {
   world = context;
   const active = [];
@@ -359,6 +373,13 @@ export function attachBehaviors(objects, links, store, context = null) {
     const entry = byEntity.get(entityId);
     if (entry) entry.kind.apply(entry, state);
   });
+  const streetlights = active.filter((e) => e.kind === kinds.streetlight);
+  const dusk = (sun) => {
+    const dark = sun?.state === 'below_horizon' || (sun?.attributes?.elevation ?? 90) < 3;
+    for (const e of streetlights) e.light.target = dark ? 1 : 0;
+  };
+  dusk(store.get(links._sun));
+  store.subscribe((id, state) => id === links._sun && dusk(state));
   return {
     update(dt) {
       for (const e of active) e.kind.update?.(e, dt);

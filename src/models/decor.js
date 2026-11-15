@@ -20,7 +20,7 @@ function cyl(rTop, rBottom, h, color, x = 0, y = 0, z = 0, extra = {}) {
 }
 const group = (...c) => { const g = new THREE.Group(); if (c.length) g.add(...c); return g; };
 
-export const DECOR_MODELS = ['antwerp_map_poster', 'orchestra_poster', 'monstera_large', 'round_wood_side_table', 'barometer_floor_lamp', 'maul_study_lamp', 'led_strip', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'wavy_black_mirror', 'glass_globe_floor_lamp', 'arch_mirror_led', 'dark_oak_shelf', 'sheer_curtains', 'wood_slat_fence', 'wood_slat_gate', 'bamboo_pendant_lamp', 'flat_white_door', 'ivy_hedge_led', 'wood_trellis', 'gravel_patch', 'grass_patch', 'soil_patch', 'bark_mulch_patch', 'sand_patch', 'paving_patch'];
+export const DECOR_MODELS = ['antwerp_map_poster', 'orchestra_poster', 'monstera_large', 'round_wood_side_table', 'barometer_floor_lamp', 'maul_study_lamp', 'led_strip', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'wavy_black_mirror', 'glass_globe_floor_lamp', 'arch_mirror_led', 'dark_oak_shelf', 'sheer_curtains', 'wood_slat_fence', 'wood_slat_gate', 'bamboo_pendant_lamp', 'flat_white_door', 'ivy_hedge_led', 'wood_trellis', 'gravel_patch', 'grass_patch', 'soil_patch', 'bark_mulch_patch', 'sand_patch', 'paving_patch', 'street_lamp', 'oak_tree'];
 
 // picture frame with the print behind glass
 function framed({ width, height, map, fallback, frame, rim }) {
@@ -633,7 +633,7 @@ registerModel('wood_trellis', ({ width = 0.9, height = 1.8, pitch = 0.11, angle 
 // Brick garage / shed: hollow running-bond brick walls, a white-framed window strip and an open
 // doorway on the front (+z), a flat corrugated roof with a wide pale fascia. Origin: centre of
 // the footprint on the ground. Stretch or set width / depth / height / door to fit.
-registerModel('garage', ({ width = 6.22, depth = 3, height = 2.5, door = 1.8, doorHeight = 2.15, doorX = 1.7, windowWidth = 1.9, windowX = -0.9, sill = 1.5, windowTop = 1.95, brick = '#9c5a45' } = {}) => {
+registerModel('garage', ({ width = 6.22, depth = 3, height = 2.5, door = 1.8, doorHeight = 2.15, doorX = 1.7, windowWidth = 1.9, windowX = -0.9, sill = 1.5, windowTop = 1.95, brick = '#9c5a45', backDoor = 0.9, backDoorX = 1.6, backDoorHeight = 2.05, backDoorColor = '#6b2f45' } = {}) => {
   const t = 0.2;
   const tile = drawn(256, 256, (c, w, h) => {
     const r = rng(41);
@@ -673,7 +673,20 @@ registerModel('garage', ({ width = 6.22, depth = 3, height = 2.5, door = 1.8, do
     g.add(m);
   };
   const W = width / 2, D = depth / 2;
-  wall(-W, W, 0, height, -D, -D + t, ['nz']); // back
+  // back wall (onto the footpath), with a plum-painted door in it
+  if (backDoor > 0) {
+    const b0 = backDoorX - backDoor / 2, b1 = backDoorX + backDoor / 2;
+    wall(-W, b0, 0, height, -D, -D + t, ['nz', 'nx']);
+    wall(b0, b1, backDoorHeight, height, -D, -D + t, ['nz']);
+    wall(b1, W, 0, height, -D, -D + t, ['nz', 'px']);
+    const leaf = group();
+    leaf.add(box(backDoor - 0.02, backDoorHeight - 0.02, 0.045, backDoorColor, 0, 0, 0, 0.004, { roughness: 0.6 }));
+    for (let i = 1; i < 5; i++) leaf.add(box(0.012, backDoorHeight - 0.06, 0.05, '#4d2033', -backDoor / 2 + (i * backDoor) / 5, 0.02, 0)); // plank grooves
+    leaf.add(box(0.03, 0.12, 0.06, '#c9c9c4', backDoor / 2 - 0.12, 1.0, -0.01)); // handle plate
+    leaf.add(box(0.1, 0.02, 0.06, '#c9c9c4', backDoor / 2 - 0.18, 1.0, -0.02));
+    leaf.position.set(backDoorX, 0, -D + 0.04);
+    g.add(leaf);
+  } else wall(-W, W, 0, height, -D, -D + t, ['nz']);
   wall(-W, -W + t, 0, height, -D + t, D - t, ['nx']); // left
   wall(W - t, W, 0, height, -D + t, D - t, ['px']); // right
   // front wall with the window strip and the doorway cut out
@@ -820,4 +833,76 @@ registerModel('paving_patch', ({ width = 2, depth = 2, tone = 'brick' } = {}) =>
       }
     },
   }));
+});
+
+// Dutch street lamp: dark tapered pole with a yellow band, a curved arm and a
+// flat luminaire. The arm reaches out towards +z (the road); the lamp stays off
+// unless the object is linked to a light entity (kind: light).
+registerModel('street_lamp', ({ height = 7, reach = 1.9, color = '#2a2f36' } = {}) => {
+  const g = group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.1, height, 20), mat(color, { roughness: 0.5, metalness: 0.4 }));
+  pole.position.y = height / 2;
+  g.add(pole);
+  g.add(cyl(0.11, 0.115, 0.1, '#e0b422', 0, 1.3));
+  g.add(cyl(0.125, 0.14, 0.25, color, 0, 0, 0, { roughness: 0.5, metalness: 0.4 }));
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, height - 0.15, 0),
+    new THREE.Vector3(0, height + 0.15, 0.1),
+    new THREE.Vector3(0, height + 0.3, reach * 0.45),
+    new THREE.Vector3(0, height + 0.22, reach),
+  ]);
+  const arm = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.045, 10), mat(color, { roughness: 0.5, metalness: 0.4 }));
+  g.add(arm);
+  const head = box(0.9, 0.1, 0.3, color, 0, height + 0.12, reach - 0.05, 0.04, { roughness: 0.5, metalness: 0.4 });
+  g.add(head);
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.2), new THREE.MeshStandardMaterial({ color: '#d8d8d0', emissive: '#ffd9a0', emissiveIntensity: 0 }));
+  glow.name = 'glow_lamp';
+  glow.rotation.x = Math.PI / 2;
+  glow.position.set(0, height + 0.115, reach - 0.05);
+  glow.userData.noShadow = true;
+  g.add(glow);
+  const anchor = new THREE.Object3D();
+  anchor.name = 'light_anchor';
+  anchor.position.set(0, height + 0.02, reach - 0.05);
+  g.add(anchor);
+  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  return g;
+});
+
+// Big old oak like the ones across the street: a thick tapered trunk (ivy-dark at the
+// base), a few heavy limbs and a broad crown made of lumpy leaf clusters in several greens.
+// Origin on the ground at the trunk.
+registerModel('oak_tree', ({ height = 12, crown = 5.5, seed = 3, tone = '#3e6a35' } = {}) => {
+  const r = rng(seed * 977 + 11), g = group();
+  const bark = mat('#4a4036', { roughness: 1 });
+  const trunkH = height * 0.42;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.62, trunkH, 10), bark);
+  trunk.position.y = trunkH / 2;
+  g.add(trunk);
+  const base = new THREE.Color(tone);
+  const leaf = (rad, x, y, z) => {
+    const c = base.clone().offsetHSL((r() - 0.5) * 0.04, (r() - 0.5) * 0.1, (r() - 0.5) * 0.1);
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(rad, 1), new THREE.MeshStandardMaterial({ color: c, roughness: 0.95, flatShading: true }));
+    m.position.set(x, y, z);
+    m.scale.y = 0.8;
+    g.add(m);
+  };
+  // limbs reaching out from the top of the trunk, a leaf cluster on each
+  const limbs = 5;
+  for (let i = 0; i < limbs; i++) {
+    const a = (i / limbs) * Math.PI * 2 + r();
+    const reach = crown * (0.35 + 0.25 * r());
+    const top = trunkH + height * (0.2 + 0.18 * r());
+    const dir = new THREE.Vector3(Math.cos(a) * reach, top - trunkH * 0.9, Math.sin(a) * reach);
+    const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.2, dir.length(), 6), bark);
+    limb.position.set(dir.x / 2, trunkH * 0.9 + dir.y / 2, dir.z / 2);
+    limb.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    g.add(limb);
+    leaf(crown * (0.42 + 0.14 * r()), dir.x, trunkH * 0.9 + dir.y, dir.z);
+    leaf(crown * 0.3, dir.x * 0.6 + (r() - 0.5), trunkH * 0.9 + dir.y * 0.8 + 0.8, dir.z * 0.6 + (r() - 0.5));
+  }
+  leaf(crown * 0.6, 0, trunkH + height * 0.3, 0);
+  leaf(crown * 0.45, (r() - 0.5) * 2, height - crown * 0.2, (r() - 0.5) * 2);
+  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  return g;
 });

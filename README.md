@@ -8,6 +8,7 @@ Built with [Three.js](https://threejs.org/) and [Vite](https://vite.dev/). No Ho
 
 - **Isometric 3D view** of every floor. Select a floor to lift the ones above it away and cut the walls open on the side facing you.
 - **Live mode** mirrors your real Home Assistant entities. Lights follow their on/off state and brightness, and the sun and moon follow `sun.sun`.
+- **Real-time weather** over the plot: rain, snow, cloud cover that dims the sun, wind and lightning. It comes from a Home Assistant `weather.*` entity, or from [Open-Meteo](https://open-meteo.com/) for your coordinates (`location` in `house.yaml`, or Home Assistant's home zone). Simulated mode has a weather picker.
 - **Simulated mode** works without Home Assistant. It has a time-of-day slider, and entities that don't exist are faked.
 - **Floor-plan editor** (Plan) for rooms, walls, doors, windows and furniture, with multi-select, undo/redo and a 3D pane beside the plan.
 - **3D edit mode** (Edit): drag, rotate and remove objects directly in the scene.
