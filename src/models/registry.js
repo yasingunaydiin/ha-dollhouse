@@ -26,7 +26,7 @@ const isFile = (name) => /\.(glb|gltf)$/i.test(name);
 
 async function loadGltf(path) {
   if (!gltfCache.has(path)) {
-    gltfCache.set(path, loader.loadAsync(`/house/${path}`).then((g) => g.scene));
+    gltfCache.set(path, loader.loadAsync(`${import.meta.env.BASE_URL}house/${path}`).then((g) => g.scene));
   }
   const scene = (await gltfCache.get(path)).clone(true);
   // clone materials so one lamp glowing doesn't light up its twins

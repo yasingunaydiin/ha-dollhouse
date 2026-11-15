@@ -13,6 +13,8 @@ export default defineConfig(({ mode }) => {
     server.middlewares.use(createHouseStore({ dir: process.env.HOUSE_DATA_DIR ?? 'data' }));
   };
   return {
+    // GitHub Pages serves the site from /<repo>/; the workflow sets VITE_BASE for that
+    base: process.env.VITE_BASE ?? '/',
     // edit mode rewrites data/house.yaml; don't reload the page every time it does
     server: { watch: { ignored: ['**/data/**'] } },
     plugins: [{ name: 'house-twin', configureServer: use, configurePreviewServer: use }],

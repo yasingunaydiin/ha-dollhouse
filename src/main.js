@@ -18,11 +18,24 @@ import { createCameraDialog } from './dialogs/camera.js';
 import { createPlanner } from './planner.js';
 import { createWeather, fetchOpenMeteo, CONDITIONS } from './weather.js';
 
-const loadYaml = async (path) => parse(await (await fetch(path)).text());
+// Normally the dev/preview server serves your house from data/. On a static host
+// (GitHub Pages) there is no server, so fall back to the bundled empty template.
+import houseTemplate from '../templates/house.yaml?raw';
+import linksTemplate from '../templates/links.yaml?raw';
+let staticSite = false;
+async function loadYaml(name, fallback) {
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}api/house/${name}`);
+    const text = res.ok ? await res.text() : '';
+    if (text && !text.trimStart().startsWith('<')) return parse(text);
+  } catch {}
+  staticSite = true;
+  return parse(fallback);
+}
 
 const [house, links] = await Promise.all([
-  loadYaml('/api/house/house.yaml'),
-  loadYaml('/api/house/links.yaml'),
+  loadYaml('house.yaml', houseTemplate),
+  loadYaml('links.yaml', linksTemplate),
 ]);
 const linked = new Set(Object.values(links));
 const query = new URLSearchParams(location.search);
@@ -336,7 +349,7 @@ world.renderer.setAnimationLoop(() => {
   world.update(dt);
 });
 
-const wanted = query.get('mode') ?? localStorage.getItem('twin.mode') ?? 'real';
+const wanted = staticSite ? 'simulated' : (query.get('mode') ?? localStorage.getItem('twin.mode') ?? 'real');
 await useSource(wanted === 'simulated' || query.has('demo') ? sim : ha);
 
 // ?demo=night starts the simulation at night with every light on
