@@ -185,7 +185,7 @@ function buildWall(w, cfg, center) {
 
   // Low inside walls can grow a taller piece behind things mounted above them
   // (see raiseWalls); this is what such a piece is made of.
-  if (!w.exterior && w.height == null && h < cfg.height - 0.05) g.userData.rise = { len, t, h, max: cfg.height, wallMat, skins, pieces: null };
+  if (!w.exterior && w.height == null && h < cfg.height - 0.05) g.userData.rise = { len, t, h, max: cfg.height, wallMat, skins, pieces: [], gaps: voids.map((v) => [v.x0, v.x1]), across: new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle)) };
 
   if (w.exterior) {
     // Exterior walls facing the camera drop to a low stub so you can see inside.
@@ -316,8 +316,8 @@ export async function buildHouse(house) {
   function raiseWalls(f) {
     const walls = f.group.children.filter((c) => c.userData.rise);
     for (const wall of walls) {
-      wall.userData.rise.pieces?.removeFromParent();
-      wall.userData.rise.pieces = null;
+      for (const piece of wall.userData.rise.pieces) piece.removeFromParent();
+      wall.userData.rise.pieces = [];
     }
     if (!walls.length) return;
     const spans = new Map(walls.map((wall) => [wall, []]));
@@ -345,35 +345,43 @@ export async function buildHouse(house) {
         // it has to lie along the wall, not just touch it with one end
         const along = Math.min(x1, len) - Math.max(x0, 0);
         if (along < Math.max(0.1, widest * 0.5)) continue;
-        spans.get(wall).push([Math.max(x0 - RISE_PAD, -t / 2), Math.min(x1 + RISE_PAD, len + t / 2), Math.min(max, top + RISE_PAD)]);
+        // side: which face of the wall the object hangs on (0: it sits right across the wall)
+        const mid = (z0 + z1) / 2, side = Math.abs(mid) < 0.02 ? 0 : Math.sign(mid);
+        spans.get(wall).push([Math.max(x0 - RISE_PAD, -t / 2), Math.min(x1 + RISE_PAD, len + t / 2), Math.min(max, top + RISE_PAD), side]);
       }
     }
-    for (const [wall, list] of spans) {
-      if (!list.length) continue;
-      const { t, h, wallMat, skins } = wall.userData.rise;
-      const pieces = new THREE.Group();
-      list.sort((a, b) => a[0] - b[0]);
-      const merged = [];
-      for (const s of list) {
-        const last = merged.at(-1);
-        if (last && s[0] <= last[1]) { last[1] = Math.max(last[1], s[1]); last[2] = Math.max(last[2], s[2]); }
-        else merged.push([...s]);
-      }
-      for (const [a, b, y] of merged) {
-        if (b - a < 1e-3 || y - h < 1e-3) continue;
-        const m = new THREE.Mesh(new THREE.BoxGeometry(b - a, y - h, t), wallMat);
-        m.position.set((a + b) / 2, (h + y) / 2, 0);
-        m.castShadow = m.receiveShadow = true;
-        pieces.add(m);
-        for (const { mat, sign } of skins) {
-          const skin = new THREE.Mesh(new THREE.BoxGeometry(b - a, y - h, 0.02), mat);
-          skin.position.set((a + b) / 2, (h + y) / 2, sign * (t / 2 + 0.01));
-          skin.receiveShadow = true;
-          pieces.add(skin);
+    for (const [wall, all] of spans) {
+      const { t, h, wallMat, skins, gaps } = wall.userData.rise;
+      for (const side of [-1, 0, 1]) {
+        const list = all.filter((s) => s[3] === side).sort((a, b) => a[0] - b[0]);
+        if (!list.length) continue;
+        const merged = [];
+        for (const s of list) {
+          const last = merged.at(-1);
+          if (last && s[0] <= last[1]) { last[1] = Math.max(last[1], s[1]); last[2] = Math.max(last[2], s[2]); }
+          else merged.push([...s]);
         }
+        // nothing stands up over a door or window: cut those out of each stretch
+        let parts = merged;
+        for (const [g0, g1] of gaps) parts = parts.flatMap(([a, b, y]) => (g1 <= a || g0 >= b ? [[a, b, y]] : [[a, g0, y], [g1, b, y]]));
+        const pieces = new THREE.Group();
+        pieces.userData.side = side;
+        for (const [a, b, y] of parts) {
+          if (b - a < 0.05 || y - h < 1e-3) continue;
+          const m = new THREE.Mesh(new THREE.BoxGeometry(b - a, y - h, t), wallMat);
+          m.position.set((a + b) / 2, (h + y) / 2, 0);
+          m.castShadow = m.receiveShadow = true;
+          pieces.add(m);
+          for (const { mat, sign } of skins) {
+            const skin = new THREE.Mesh(new THREE.BoxGeometry(b - a, y - h, 0.02), mat);
+            skin.position.set((a + b) / 2, (h + y) / 2, sign * (t / 2 + 0.01));
+            skin.receiveShadow = true;
+            pieces.add(skin);
+          }
+        }
+        wall.add(pieces);
+        wall.userData.rise.pieces.push(pieces);
       }
-      wall.add(pieces);
-      wall.userData.rise.pieces = pieces;
     }
   }
   // a number that changes whenever an object on the floor is added, removed, moved, turned or resized
@@ -394,6 +402,12 @@ export async function buildHouse(house) {
       if (key !== f.layoutKey) {
         f.layoutKey = key;
         raiseWalls(f);
+      }
+      // a raised piece only helps behind its object; between it and the camera it would hide it
+      for (const wall of f.group.children) {
+        const rise = wall.userData.rise;
+        if (!rise) continue;
+        for (const piece of rise.pieces) piece.visible = -piece.userData.side * rise.across.dot(cameraDir) <= 0.05;
       }
       if (f.offset !== f.offsetTarget) {
         f.offset = THREE.MathUtils.damp(f.offset, f.offsetTarget, 5, dt);
