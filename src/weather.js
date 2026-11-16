@@ -138,7 +138,7 @@ export function createWeather({ scene, world, houseBounds }) {
     get condition() { return condition; },
     set,
     fromHa(state) { set(HA_CONDITIONS[state] ?? 'clear'); },
-    fromWmo(code) { set(fromWmo(code)); },
+    fromWmo(code) { const name = fromWmo(code); set(name); return name; },
     update(dt, time) {
       const k = 1 - Math.exp(-0.8 * dt);
       for (const key of Object.keys(now)) now[key] += (target[key] - now[key]) * k;
@@ -161,6 +161,23 @@ export function createWeather({ scene, world, houseBounds }) {
 }
 
 // Current conditions at a place, from Open-Meteo. Returns { code, wind } or null.
+// Where the sun stands at a moment and place: elevation above the horizon and
+// azimuth clockwise from north, in degrees (good to a fraction of a degree).
+export function sunPosition(date, latitude, longitude) {
+  const rad = Math.PI / 180;
+  const d = date / 86400000 + 2440587.5 - 2451545; // days since J2000
+  const g = (357.529 + 0.98560028 * d) * rad;
+  const lambda = (280.459 + 0.98564736 * d + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * rad;
+  const tilt = (23.439 - 0.00000036 * d) * rad;
+  const ra = Math.atan2(Math.cos(tilt) * Math.sin(lambda), Math.cos(lambda));
+  const dec = Math.asin(Math.sin(tilt) * Math.sin(lambda));
+  const hour = ((18.697374558 + 24.06570982441908 * d) * 15 + longitude) * rad - ra;
+  const lat = latitude * rad;
+  const elevation = Math.asin(Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(hour));
+  const azimuth = Math.atan2(-Math.sin(hour), Math.tan(dec) * Math.cos(lat) - Math.sin(lat) * Math.cos(hour));
+  return { elevation: elevation / rad, azimuth: ((azimuth / rad) % 360 + 360) % 360 };
+}
+
 export async function fetchOpenMeteo(latitude, longitude) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=weather_code,wind_speed_10m`;
   try {

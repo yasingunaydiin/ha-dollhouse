@@ -164,6 +164,9 @@ body.night .modal .card { --ink: #eceaf4; --soft: #9aa0c0; --chip: #2c3150; --ac
 #daynight { display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: default; }
 #daynight input { width: 110px; accent-color: #1f9fd0; }
 #daynight output { min-width: 34px; font-variant-numeric: tabular-nums; }
+#now { border: 0; border-radius: 999px; padding: 3px 10px; font: inherit; font-weight: 600; cursor: pointer; background: rgba(0, 0, 0, 0.08); color: inherit; }
+body.night #now { background: rgba(255, 255, 255, 0.1); }
+#now.active, body.night #now.active { background: #1f9fd0; color: #fff; }
 
 /* floor-plan editor (blueprint look) */
 #planner {

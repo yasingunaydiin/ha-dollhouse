@@ -17,7 +17,7 @@ import { createClimateDialog } from './dialogs/climate.js';
 import { createCameraDialog } from './dialogs/camera.js';
 import { createPlanner } from './planner.js';
 import { storedHouse, storeHouse, saveLocally } from './house-file.js';
-import { createWeather, fetchOpenMeteo, CONDITIONS } from './weather.js';
+import { createWeather, fetchOpenMeteo, sunPosition, CONDITIONS } from './weather.js';
 
 // Normally the dev/preview server serves your house from data/. On a static host
 // (GitHub Pages) there is no server, so fall back to the bundled empty template.
@@ -279,6 +279,7 @@ async function useSource(next) {
   dayNight.hidden = source !== sim;
   if (source === sim) weather.set(weatherPicker.value);
   else refreshWeather();
+  followNow();
   if (!embedded) localStorage.setItem('twin.mode', source.mode);
 }
 
@@ -291,10 +292,14 @@ function simulateSun(hours) {
   const azimuth = (hours / 24) * 360; // south at noon
   store.set(links._sun, elevation > 0 ? 'above_horizon' : 'below_horizon', { elevation, azimuth, friendly_name: 'Sun' });
 }
+function showClock(h) {
+  sunSlider.value = h;
+  sunClock.textContent = `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`;
+}
 sunSlider.addEventListener('input', () => {
-  const h = +sunSlider.value;
-  sunClock.textContent = `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
-  simulateSun(h);
+  setLive(false); // picking a time by hand leaves "Now"
+  showClock(+sunSlider.value);
+  simulateSun(+sunSlider.value);
 });
 
 // --- scene-level binding: the sun entity drives day / night
@@ -325,7 +330,62 @@ const weather = createWeather({ scene: world.scene, world, houseBounds: houseBox
 const weatherPicker = document.getElementById('weather');
 weatherPicker.innerHTML = CONDITIONS.map((c) => `<option>${c}</option>`).join('');
 weatherPicker.value = 'clear';
-weatherPicker.addEventListener('change', () => weather.set(weatherPicker.value));
+weatherPicker.addEventListener('change', () => {
+  setLive(false);
+  weather.set(weatherPicker.value);
+});
+
+// "Now" in simulated mode: the real clock, the real sun and the real weather at
+// the house's location (house.yaml `location`, else where this browser says it is)
+const nowButton = document.getElementById('now');
+let live = !embedded && localStorage.getItem('twin.live') === '1';
+let liveTimer, liveWeatherAt = 0;
+function liveLocation() {
+  if (house.location?.latitude != null && house.location?.longitude != null) return house.location;
+  try { return JSON.parse(localStorage.getItem('twin.location')); } catch { return null; }
+}
+const askLocation = () => new Promise((resolve) => {
+  if (!navigator.geolocation) return resolve(null);
+  navigator.geolocation.getCurrentPosition(
+    ({ coords }) => resolve({ latitude: +coords.latitude.toFixed(2), longitude: +coords.longitude.toFixed(2) }),
+    () => resolve(null),
+    { timeout: 10000, maximumAge: 3600000 }
+  );
+});
+async function followNow() {
+  clearTimeout(liveTimer);
+  nowButton.classList.toggle('active', live);
+  if (!live || source !== sim) return;
+  const date = new Date(), loc = liveLocation();
+  const hours = date.getHours() + date.getMinutes() / 60;
+  showClock(hours);
+  if (loc) {
+    const sun = sunPosition(date, loc.latitude, loc.longitude);
+    store.set(links._sun, sun.elevation > 0 ? 'above_horizon' : 'below_horizon', { ...sun, friendly_name: 'Sun' });
+  } else simulateSun(hours);
+  liveTimer = setTimeout(followNow, 60 * 1000);
+  if (loc && Date.now() - liveWeatherAt > 10 * 60 * 1000) {
+    liveWeatherAt = Date.now();
+    const now = await fetchOpenMeteo(loc.latitude, loc.longitude);
+    if (now && live && source === sim) weatherPicker.value = weather.fromWmo(now.code);
+  }
+}
+function setLive(on) {
+  if (live === on) return;
+  live = on;
+  liveWeatherAt = 0;
+  if (!embedded) localStorage.setItem('twin.live', on ? '1' : '');
+  followNow();
+}
+nowButton.addEventListener('click', async () => {
+  if (live) return setLive(false);
+  if (!liveLocation()) {
+    const loc = await askLocation();
+    if (loc) localStorage.setItem('twin.location', JSON.stringify(loc));
+    else say('No location: showing the real time, but not the real sun and weather. Allow location, or set location in house.yaml.');
+  }
+  setLive(true);
+});
 
 // Real mode: the Home Assistant weather entity if there is one, otherwise the
 // real conditions at the house's coordinates (Open-Meteo, refreshed every 10 min).
