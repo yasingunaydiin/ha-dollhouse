@@ -133,8 +133,11 @@ if (embedded) {
     const f = house.floors.find((x) => x.id === id);
     if (!f) return location.reload();
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-    // rooms (the floors themselves) changed: the saved house has them, start over from it
-    if (e.data.rooms && !same(f.rooms ?? [], e.data.rooms)) return location.reload();
+    if (e.data.rooms && !same(f.rooms ?? [], e.data.rooms)) {
+      // rooms (the floors themselves) changed: rebuild just this floor's slabs
+      built.rebuildRooms(id, e.data.rooms);
+      f.rooms = e.data.rooms;
+    }
     if (!same(f.wallList ?? [], wallList)) {
       // walls, doors, windows or paint changed: rebuild just this floor's walls
       built.rebuildWalls(id, wallList);

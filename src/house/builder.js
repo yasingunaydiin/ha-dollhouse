@@ -26,6 +26,7 @@ function buildSlabs(floor, cfg, group) {
     slab.position.set(x + w / 2, top - thick / 2, z + d / 2);
     slab.receiveShadow = true;
     slab.userData.roomId = room.id;
+    slab.userData.isSlab = true;
     group.add(slab);
     if (room.outdoor) continue;
     minX = Math.min(minX, x); minZ = Math.min(minZ, z);
@@ -48,6 +49,7 @@ function buildSlabs(floor, cfg, group) {
   base.position.set((minX + maxX) / 2, -0.2, (minZ + maxZ) / 2);
   base.castShadow = true;
   base.receiveShadow = true;
+  base.userData.isSlab = true;
   group.add(base);
   return { minX, minZ, maxX, maxZ };
 }
@@ -228,7 +230,7 @@ async function buildFloor(floor, level, house, objects) {
     group.add(wall);
   }
 
-  const rec = { id: floor.id, name: floor.name, outsideOnly: !!floor.outsideOnly, level, group, cutaways, center, cfg, facade: [] };
+  const rec = { id: floor.id, def: floor, name: floor.name, outsideOnly: !!floor.outsideOnly, level, group, cutaways, center, cfg, facade: [] };
   await Promise.all((floor.objects ?? []).map((def) => placeObject(rec, def, objects)));
   return rec;
 }
@@ -467,5 +469,14 @@ export async function buildHouse(house) {
     }
   }
 
-  return { root, objects, floors, setView, update, settle, addObject, removeObject, rebuildWalls, get view() { return view; } };
+  // replace the floor slabs of one floor (rooms moved, resized, recoloured, added or
+  // removed in the plan editor); the house stays where it is
+  function rebuildRooms(floorId, rooms) {
+    const f = floors.find((x) => x.id === floorId);
+    if (!f) return;
+    for (const child of [...f.group.children]) if (child.userData.isSlab) child.removeFromParent();
+    buildSlabs({ ...f.def, rooms: rooms ?? [] }, f.cfg, f.group);
+  }
+
+  return { root, objects, floors, setView, update, settle, addObject, removeObject, rebuildWalls, rebuildRooms, get view() { return view; } };
 }
