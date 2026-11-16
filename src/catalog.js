@@ -18,7 +18,7 @@ const CATEGORY = [
   ['Bedroom', /malm_|rast_|elvarli/],
   ['Kitchen', /kitchen|fridge|dishwasher|trash|coffee_machine|stove/],
   ['Bathroom', /bathtub|toilet|vanity|shower|basin|wall_sink/],
-  ['Bedroom', /^bed$|pine_bed|metal_bed|nightstand|wardrobe|builtin_cupboard/],
+  ['Bedroom', /^bed$|pine_bed|metal_bed|nightstand|wardrobe|builtin_cupboard|clothes_rail/],
   ['Office', /desk|office_chair|markus|server|printer|msi_|samsung_c24|clamp_lamp/],
   ['Dining', /dining|pendant_bar|^chair$|^stool$/],
   ['Utility', /washing|boiler|meter|solar|litter|radiator|heater|tower_fan/],
@@ -27,7 +27,7 @@ const CATEGORY = [
   ['Living', /sofa|recliner|poang|coffee_table|tv_|samsung_tv|rug|lamp|ceiling_light|track_light|table|plant|monstera|pothos|christmas|cat|shelf|rack|frame|leaning/],
 ];
 const categoryOf = (name) => CATEGORY.find(([, re]) => re.test(name))?.[0] ?? 'Living';
-const pretty = (n) => (IKEA_MODELS.includes(n) ? n.replace(/^[a-z]+/, (w) => w.toUpperCase()).replace('POANG', 'POÄNG').replace('VITTSJO', 'VITTSJÖ').replace('BESTA', 'BESTÅ') : n.replace(/^./, (c) => c.toUpperCase())).replaceAll('_', ' ');
+const pretty = (n) => (IKEA_MODELS.includes(n) ? n.replace(/^[a-z]+/, (w) => w.toUpperCase()).replace('POANG', 'POÄNG').replace('VITTSJO', 'VITTSJÖ').replace('BESTA', 'BESTÅ').replace('TARNABY', 'TÄRNABY') : n.replace(/^./, (c) => c.toUpperCase())).replaceAll('_', ' ');
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
 const read = (key, fallback) => {

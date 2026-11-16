@@ -20,7 +20,7 @@ function cyl(rTop, rBottom, h, color, x = 0, y = 0, z = 0, extra = {}) {
 }
 const group = (...c) => { const g = new THREE.Group(); if (c.length) g.add(...c); return g; };
 
-export const DECOR_MODELS = ['antwerp_map_poster', 'orchestra_poster', 'monstera_large', 'round_wood_side_table', 'barometer_floor_lamp', 'maul_study_lamp', 'led_strip', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'wavy_black_mirror', 'glass_globe_floor_lamp', 'arch_mirror_led', 'dark_oak_shelf', 'sheer_curtains', 'wood_slat_fence', 'wood_slat_gate', 'bamboo_pendant_lamp', 'flat_white_door', 'ivy_hedge_led', 'wood_trellis', 'gravel_patch', 'grass_patch', 'soil_patch', 'bark_mulch_patch', 'sand_patch', 'paving_patch', 'street_lamp', 'oak_tree'];
+export const DECOR_MODELS = ['antwerp_map_poster', 'orchestra_poster', 'monstera_large', 'round_wood_side_table', 'barometer_floor_lamp', 'maul_study_lamp', 'led_strip', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'wavy_black_mirror', 'glass_globe_floor_lamp', 'arch_mirror_led', 'dark_oak_shelf', 'sheer_curtains', 'wood_slat_fence', 'wood_slat_gate', 'bamboo_pendant_lamp', 'flat_white_door', 'ivy_hedge_led', 'wood_trellis', 'gravel_patch', 'grass_patch', 'soil_patch', 'bark_mulch_patch', 'sand_patch', 'paving_patch', 'street_lamp', 'oak_tree', 'clothes_rail', 'tarnaby_table_lamp'];
 
 // picture frame with the print behind glass
 function framed({ width, height, map, fallback, frame, rim }) {
@@ -904,5 +904,83 @@ registerModel('oak_tree', ({ height = 12, crown = 5.5, seed = 3, tone = '#3e6a35
   leaf(crown * 0.6, 0, trunkH + height * 0.3, 0);
   leaf(crown * 0.45, (r() - 0.5) * 2, height - crown * 0.2, (r() - 0.5) * 2);
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  return g;
+});
+
+// Wall-mounted clothes rail (kledingrek): a chrome bar on two wall brackets with
+// shirts, jackets and knits on hangers. z = 0 is the wall, the rail is `height` up.
+registerModel('clothes_rail', ({ length = 1.2, height = 1.7, depth = 0.3, items = 10, seed = 4, rail = '#c9ccd1', clothes = true } = {}) => {
+  const rand = rng(seed), g = group(), R = 0.012;
+  const metal = { metalness: 0.85, roughness: 0.25 };
+  const bar = cyl(R, R, length, rail, 0, 0, 0, metal);
+  bar.rotation.z = Math.PI / 2;
+  bar.position.set(0, height, depth);
+  g.add(bar);
+  for (const sx of [-1, 1]) {
+    const x = sx * (length / 2 - 0.06);
+    const arm = cyl(0.008, 0.008, depth, rail, 0, 0, 0, metal);
+    arm.rotation.x = Math.PI / 2;
+    arm.position.set(x, height, depth / 2);
+    g.add(arm, box(0.03, 0.09, 0.006, rail, x, height - 0.045, 0.003, 0.002, metal));
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(R * 1.25, 16, 12), mat(rail, metal)).translateX(sx * length / 2).translateY(height).translateZ(depth));
+  }
+  if (!clothes || items < 1) return g;
+
+  // one garment: its outline (shoulders, hanging sleeves, hem) given some thickness
+  const COLORS = ['#f4f3ef', '#7fa3c9', '#f1efe9', '#d9c7ad', '#cdb497', '#efe6d6', '#8a5a3c', '#e9dcc4', '#c9793f', '#c79b6e', '#5d6b7a', '#e8e4dc'];
+  function garment(color, len, half, thick, knit) {
+    const sleeve = len * (0.62 + rand() * 0.14), s = new THREE.Shape();
+    const pts = [[0.055, 0], [half, -0.05], [half + 0.012, -sleeve], [half - 0.075, -sleeve], [half - 0.08, -len], [-(half - 0.08), -len], [-(half - 0.075), -sleeve], [-(half + 0.012), -sleeve], [-half, -0.05], [-0.055, 0]];
+    s.moveTo(...pts[0]);
+    for (const p of pts.slice(1)) s.lineTo(...p);
+    s.closePath();
+    const bevel = Math.min(0.012, thick / 2.5);
+    const geo = new THREE.ExtrudeGeometry(s, { depth: thick - 2 * bevel, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2 });
+    geo.translate(0, 0, -(thick - 2 * bevel) / 2);
+    const m = new THREE.Mesh(geo, mat(color, { roughness: knit ? 1 : 0.85 }));
+    m.rotation.y = Math.PI / 2; // hang side-on to the rail
+    return m;
+  }
+  const usable = length - 0.2, step = usable / items;
+  for (let i = 0; i < items; i++) {
+    const knit = rand() < 0.35;
+    const thick = knit ? 0.05 + rand() * 0.025 : 0.022 + rand() * 0.02;
+    const item = group(garment(COLORS[Math.floor(rand() * COLORS.length)], 0.62 + rand() * 0.33, 0.2 + rand() * 0.035, Math.min(thick, step * 1.1), knit));
+    // hanger: hook over the rail and a short stem down to the collar
+    const hook = new THREE.Mesh(new THREE.TorusGeometry(R + 0.004, 0.0025, 8, 20), mat('#b9bcc1', metal));
+    hook.rotation.y = Math.PI / 2;
+    hook.position.y = 0.075;
+    item.add(hook, cyl(0.0025, 0.0025, 0.06, '#b9bcc1', 0, 0, 0, metal));
+    item.position.set(-usable / 2 + step * (i + 0.5) + (rand() - 0.5) * step * 0.25, height - 0.075, depth);
+    item.rotation.y = (rand() - 0.5) * 0.22;
+    g.add(item);
+  }
+  return g;
+});
+
+// IKEA TÄRNABY table lamp, 25 cm tall on a 15 cm base: anthracite oil-lamp body,
+// brass dimmer knob, clear glass chimney over an amber candle bulb.
+registerModel('tarnaby_table_lamp', ({ color = '#27282b', brass = '#c9a252' } = {}) => {
+  const lathe = (pts, material) => new THREE.Mesh(new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), 40), material);
+  const gold = { metalness: 0.8, roughness: 0.3 };
+  const g = group();
+  g.add(lathe([[0, 0], [0.072, 0], [0.075, 0.006], [0.075, 0.034], [0.069, 0.049], [0.047, 0.083], [0.041, 0.091], [0.041, 0.104], [0.037, 0.108], [0, 0.108]], mat(color, { roughness: 0.45, metalness: 0.2 })));
+  g.add(cyl(0.035, 0.035, 0.004, brass, 0, 0.106, 0, gold), cyl(0.011, 0.012, 0.014, brass, 0, 0.108, 0, gold));
+  const knob = cyl(0.0075, 0.0075, 0.014, brass, 0, 0, 0, gold);
+  knob.rotation.z = Math.PI / 2;
+  knob.position.set(0.049, 0.09, 0.012);
+  g.add(knob);
+
+  const bulb = lathe([[0, 0.12], [0.009, 0.12], [0.012, 0.128], [0.019, 0.15], [0.017, 0.17], [0.008, 0.188], [0, 0.196]],
+    new THREE.MeshStandardMaterial({ color: '#d99a45', emissive: '#ffb25c', emissiveIntensity: 0, roughness: 0.25, transparent: true, opacity: 0.9 }));
+  bulb.name = 'glow';
+  g.add(bulb);
+  g.add(lathe([[0.033, 0.108], [0.035, 0.12], [0.052, 0.14], [0.056, 0.168], [0.056, 0.205], [0.049, 0.228], [0.033, 0.24], [0.03, 0.25]],
+    new THREE.MeshStandardMaterial({ color: '#eef4f5', roughness: 0.05, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false })));
+
+  g.add(box(0.005, 0.005, 0.3, '#1b1b1d', 0, 0.002, -0.22)); // fabric cord out the back
+  const a = new THREE.Object3D();
+  a.name = 'light_anchor'; a.position.set(0, 0.16, 0);
+  g.add(a);
   return g;
 });
