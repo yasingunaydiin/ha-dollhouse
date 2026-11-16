@@ -16,6 +16,7 @@ import { createEditor } from './editor.js';
 import { createClimateDialog } from './dialogs/climate.js';
 import { createCameraDialog } from './dialogs/camera.js';
 import { createPlanner } from './planner.js';
+import { storedHouse, storeHouse, saveLocally } from './house-file.js';
 import { createWeather, fetchOpenMeteo, CONDITIONS } from './weather.js';
 
 // Normally the dev/preview server serves your house from data/. On a static host
@@ -24,10 +25,6 @@ import houseTemplate from '../templates/house.yaml?raw';
 import linksTemplate from '../templates/links.yaml?raw';
 let staticSite = false;
 const texts = {}; // the yaml as loaded, kept for exporting from the static site
-const STORED = 'twin.static-house'; // a house imported into this browser (static site only)
-function storedHouse() {
-  try { return JSON.parse(localStorage.getItem(STORED)); } catch { return null; }
-}
 async function loadYaml(name, fallback) {
   try {
     const res = await fetch(`${import.meta.env.BASE_URL}api/house/${name}`);
@@ -44,6 +41,7 @@ const [house, links] = await Promise.all([
   loadYaml('house.yaml', houseTemplate),
   loadYaml('links.yaml', linksTemplate),
 ]);
+if (staticSite) saveLocally(texts); // edits stay in this browser
 const linked = new Set(Object.values(links));
 const query = new URLSearchParams(location.search);
 const embedded = query.has('embed'); // the planner's "3D beside" pane: just the house, no controls
@@ -107,7 +105,7 @@ importFile.addEventListener('change', async () => {
       // no server here: keep the imported house in this browser only
       if (data?.format !== 'house-twin' || typeof data.house !== 'string' || typeof data.links !== 'string') throw new Error('this is not a House Twin export file');
       if (!Array.isArray(parse(data.house)?.floors)) throw new Error('the house in this file has no floors');
-      localStorage.setItem(STORED, JSON.stringify({ house: data.house, links: data.links }));
+      storeHouse(data.house, data.links);
     } else {
       const res = await fetch('/api/house/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       if (!res.ok) throw new Error((await res.json()).error);

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { createModel } from './models/registry.js';
 import { createCatalog } from './catalog.js';
+import { saveEdit } from './house-file.js';
 
 const GRID = 0.05; // snap, metres
 const round = (n) => Math.round(n * 100) / 100;
@@ -120,12 +121,7 @@ export function createPlanner({ house, say }) {
   async function save() {
     dirty = true;
     try {
-      const res = await fetch('/api/house/edit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ op: 'setFloor', floor: floor.id, wallList: walls(), objects: objects() }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error);
+      await saveEdit({ op: 'setFloor', floor: floor.id, wallList: walls(), objects: objects() });
       refresh3d();
     } catch (err) {
       say(`Not saved: ${err.message}`);

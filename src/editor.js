@@ -3,6 +3,7 @@
 // (Ctrl/Cmd+Z) and redone (Ctrl/Cmd+Shift+Z or Ctrl+Y) until the page reloads.
 import * as THREE from 'three';
 import { listModels } from './models/registry.js';
+import { saveEdit } from './house-file.js';
 
 const SNAP = 0.05; // metres
 const ROT_STEP = 45; // degrees
@@ -27,12 +28,7 @@ export function createEditor({ world, built, house, container, say }) {
 
   async function save(edit) {
     try {
-      const res = await fetch('/api/house/edit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(edit),
-      });
-      if (!res.ok) throw new Error((await res.json()).error);
+      await saveEdit(edit);
     } catch (err) {
       say(`Not saved: ${err.message}`);
     }

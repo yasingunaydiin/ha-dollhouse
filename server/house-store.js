@@ -6,11 +6,11 @@
 //                           { op: 'setFloor', floor, wallList, objects }  (floor-plan editor)
 //   GET  /api/house/export  the whole house as one downloadable file
 //   POST /api/house/import  such a file; replaces the house (the old one is kept in data/backups)
-// Edits use the YAML document API so comments and layout in the file survive.
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { parse, parseDocument } from 'yaml';
+import { parse } from 'yaml';
+import { applyEdit } from '../src/house-edit.js';
 
 const FILES = ['house.yaml', 'links.yaml'];
 const FORMAT = 'house-twin';
@@ -27,43 +27,7 @@ export function createHouseStore({ dir = 'data', templates = 'templates' } = {})
   }
   const read = async (name) => (await ready(), readFile(path(name), 'utf8'));
 
-  async function edit(change) {
-    const file = path('house.yaml');
-    const doc = parseDocument(await read('house.yaml'));
-    const floor = doc.get('floors').items.find((f) => f.get('id') === change.floor);
-    if (!floor) throw new Error(`No floor "${change.floor}"`);
-    if (change.op === 'setFloor') {
-      // the plan editor replaces a floor's walls and objects wholesale
-      for (const key of ['wallList', 'objects']) {
-        if (!Array.isArray(change[key])) continue;
-        const node = doc.createNode(change[key]);
-        for (const item of node.items) item.flow = true;
-        floor.set(key, node);
-      }
-      return writeFile(file, doc.toString({ lineWidth: 0, flowCollectionPadding: false }));
-    }
-    if (!floor.has('objects') || !floor.get('objects')?.items) floor.set('objects', doc.createNode([]));
-    const objects = floor.get('objects');
-    const index = objects.items.findIndex((o) => o.get('id') === change.id);
-    const flow = (value) => Object.assign(doc.createNode(value), { flow: true });
-
-    if (change.op === 'add') {
-      if (index >= 0) throw new Error(`"${change.id}" already exists`);
-      objects.flow = false;
-      objects.add(flow(change.def));
-    } else if (index < 0) {
-      throw new Error(`No object "${change.id}" on floor "${change.floor}"`);
-    } else if (change.op === 'remove') {
-      objects.delete(index);
-    } else if (change.op === 'move') {
-      const item = objects.items[index];
-      item.set('at', flow(change.at));
-      if (change.rot) item.set('rot', change.rot);
-      else item.delete('rot');
-    } else throw new Error(`Unknown edit "${change.op}"`);
-
-    await writeFile(file, doc.toString({ lineWidth: 0, flowCollectionPadding: false }));
-  }
+  const edit = async (change) => writeFile(path('house.yaml'), applyEdit(await read('house.yaml'), change));
 
   // The export keeps both files as text, so comments survive a round trip.
   async function exportHouse() {
