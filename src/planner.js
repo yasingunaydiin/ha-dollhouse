@@ -135,7 +135,8 @@ export function createPlanner({ house, say }) {
   let reloadTimer = 0;
   function show3d() {
     const frame = $('iframe');
-    frame.src = `/?embed=1&view=${encodeURIComponent(floor?.id ?? '')}&t=${Date.now()}`;
+    // BASE_URL, not "/": on GitHub Pages the app lives under /<repo>/
+    frame.src = `${import.meta.env.BASE_URL}?embed=1&view=${encodeURIComponent(floor?.id ?? '')}&t=${Date.now()}`;
   }
   // tell the 3D pane what changed; it moves things in place and only reloads itself
   // when something structural (walls, new or removed objects) changed
