@@ -23,7 +23,7 @@ const CATEGORY = [
   ['Dining', /dining|pendant_bar|^chair$|^stool$/],
   ['Utility', /washing|boiler|meter|solar|litter|radiator|heater|tower_fan/],
   ['Hall', /stairs|stairwell|railing|doorbell|globe_pendant|round_mirror/],
-  ['Garden', /pergola|acapulco|hanging_chair|rain_barrel|fire_pit|ivy|flower_bed|stepping|garage|bush|fence|_patch|gravel|slat_gate|trellis|ivy_hedge|hedge|planter|tapo_camera/],
+  ['Garden', /decking|pergola|acapulco|hanging_chair|rain_barrel|fire_pit|ivy|flower_bed|stepping|garage|bush|fence|_patch|gravel|slat_gate|trellis|ivy_hedge|hedge|planter|tapo_camera/],
   ['Living', /sofa|recliner|poang|coffee_table|tv_|samsung_tv|rug|lamp|ceiling_light|track_light|table|plant|monstera|pothos|christmas|cat|shelf|rack|frame|leaning/],
 ];
 const categoryOf = (name) => CATEGORY.find(([, re]) => re.test(name))?.[0] ?? 'Living';

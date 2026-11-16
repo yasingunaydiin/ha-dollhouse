@@ -20,7 +20,7 @@ function cyl(rTop, rBottom, h, color, x = 0, y = 0, z = 0, extra = {}) {
 }
 const group = (...c) => { const g = new THREE.Group(); if (c.length) g.add(...c); return g; };
 
-export const DECOR_MODELS = ['antwerp_map_poster', 'orchestra_poster', 'monstera_large', 'round_wood_side_table', 'barometer_floor_lamp', 'maul_study_lamp', 'led_strip', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'wavy_black_mirror', 'glass_globe_floor_lamp', 'arch_mirror_led', 'dark_oak_shelf', 'sheer_curtains', 'wood_slat_fence', 'wood_slat_gate', 'bamboo_pendant_lamp', 'flat_white_door', 'ivy_hedge_led', 'wood_trellis', 'gravel_patch', 'grass_patch', 'soil_patch', 'bark_mulch_patch', 'sand_patch', 'paving_patch', 'street_lamp', 'oak_tree', 'clothes_rail', 'tarnaby_table_lamp'];
+export const DECOR_MODELS = ['antwerp_map_poster', 'orchestra_poster', 'monstera_large', 'round_wood_side_table', 'barometer_floor_lamp', 'maul_study_lamp', 'led_strip', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'wavy_black_mirror', 'glass_globe_floor_lamp', 'arch_mirror_led', 'dark_oak_shelf', 'sheer_curtains', 'wood_slat_fence', 'wood_slat_gate', 'bamboo_pendant_lamp', 'flat_white_door', 'ivy_hedge_led', 'wood_trellis', 'gravel_patch', 'grass_patch', 'soil_patch', 'bark_mulch_patch', 'sand_patch', 'paving_patch', 'street_lamp', 'oak_tree', 'clothes_rail', 'tarnaby_table_lamp', 'runnen_decking'];
 
 // picture frame with the print behind glass
 function framed({ width, height, map, fallback, frame, rim }) {
@@ -983,4 +983,32 @@ registerModel('tarnaby_table_lamp', ({ color = '#27282b', brass = '#c9a252' } = 
   a.name = 'light_anchor'; a.position.set(0, 0.16, 0);
   g.add(a);
   return g;
+});
+
+// IKEA RUNNEN decking (vlonders): 30 x 30 x 2 cm click tiles, each four blocks of
+// three acacia slats in a basket-weave on a black plastic grid. Origin: centre, on
+// the ground. width / depth are rounded to whole tiles; the default is one pack of 9.
+registerModel('runnen_decking', ({ width = 0.9, depth = 0.9, tone = '#a9753f' } = {}) => {
+  const TILE = 0.3, Q = TILE / 2, GAP = 0.004, BASE = 0.007, H = 0.02;
+  const nx = Math.min(60, Math.max(1, Math.round(width / TILE))), nz = Math.min(60, Math.max(1, Math.round(depth / TILE)));
+  const W = nx * TILE, D = nz * TILE;
+  const base = box(W - 0.004, BASE, D - 0.004, '#1b1b1c', 0, 0, 0);
+  base.userData.noShadow = true;
+  const slatW = (Q - GAP) / 3 - GAP, slatL = Q - 2 * GAP;
+  const mesh = new THREE.InstancedMesh(new RoundedBoxGeometry(slatW, H - BASE, slatL, 1, 0.002), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.75 }), nx * nz * 12);
+  const r = rng(nx * 31 + nz * 7 + 5), wood = new THREE.Color(tone), c = new THREE.Color();
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), quarter = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2), one = new THREE.Vector3(1, 1, 1);
+  let i = 0;
+  for (let bx = 0; bx < nx * 2; bx++)
+    for (let bz = 0; bz < nz * 2; bz++) {
+      const cx = -W / 2 + (bx + 0.5) * Q, cz = -D / 2 + (bz + 0.5) * Q, turned = (bx + bz) % 2 === 1;
+      for (let k = -1; k <= 1; k++) {
+        const off = k * (slatW + GAP);
+        m.compose(new THREE.Vector3(cx + (turned ? 0 : off), BASE + (H - BASE) / 2, cz + (turned ? off : 0)), turned ? quarter : q, one);
+        mesh.setMatrixAt(i, m);
+        mesh.setColorAt(i++, c.copy(wood).multiplyScalar(0.82 + r() * 0.36));
+      }
+    }
+  mesh.userData.noShadow = true;
+  return group(base, mesh);
 });
