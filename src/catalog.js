@@ -9,7 +9,7 @@ const ROOMS = ['Living', 'Dining', 'Kitchen', 'Bedroom', 'Bathroom', 'Office', '
 const CATEGORY = [
   ['Living', /nintendo/],
   ['Office', /macbook|logitech/],
-  ['Hall', /arch_mirror/],
+  ['Hall', /arch_mirror|jute_runner/],
   ['Living', /wavy_black_mirror|glass_globe|curtain|blinds|bamboo_pendant/],
   ['Hall', /flat_white_door/],
   ['Hall', /^pax_/],

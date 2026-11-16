@@ -20,7 +20,7 @@ function cyl(rTop, rBottom, h, color, x = 0, y = 0, z = 0, extra = {}) {
 }
 const group = (...c) => { const g = new THREE.Group(); if (c.length) g.add(...c); return g; };
 
-export const DECOR_MODELS = ['antwerp_map_poster', 'orchestra_poster', 'monstera_large', 'round_wood_side_table', 'barometer_floor_lamp', 'maul_study_lamp', 'led_strip', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'wavy_black_mirror', 'glass_globe_floor_lamp', 'arch_mirror_led', 'dark_oak_shelf', 'sheer_curtains', 'wood_slat_fence', 'wood_slat_gate', 'bamboo_pendant_lamp', 'flat_white_door', 'ivy_hedge_led', 'wood_trellis', 'gravel_patch', 'grass_patch', 'soil_patch', 'bark_mulch_patch', 'sand_patch', 'paving_patch', 'street_lamp', 'oak_tree', 'clothes_rail', 'tarnaby_table_lamp', 'runnen_decking'];
+export const DECOR_MODELS = ['antwerp_map_poster', 'orchestra_poster', 'monstera_large', 'round_wood_side_table', 'barometer_floor_lamp', 'maul_study_lamp', 'led_strip', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'wavy_black_mirror', 'glass_globe_floor_lamp', 'arch_mirror_led', 'dark_oak_shelf', 'sheer_curtains', 'wood_slat_fence', 'wood_slat_gate', 'bamboo_pendant_lamp', 'flat_white_door', 'ivy_hedge_led', 'wood_trellis', 'gravel_patch', 'grass_patch', 'soil_patch', 'bark_mulch_patch', 'sand_patch', 'paving_patch', 'street_lamp', 'oak_tree', 'clothes_rail', 'tarnaby_table_lamp', 'runnen_decking', 'jute_runner'];
 
 // picture frame with the print behind glass
 function framed({ width, height, map, fallback, frame, rim }) {
@@ -976,7 +976,7 @@ registerModel('tarnaby_table_lamp', ({ color = '#27282b', brass = '#c9a252' } = 
   bulb.name = 'glow';
   g.add(bulb);
   g.add(lathe([[0.033, 0.108], [0.035, 0.12], [0.052, 0.14], [0.056, 0.168], [0.056, 0.205], [0.049, 0.228], [0.033, 0.24], [0.03, 0.25]],
-    new THREE.MeshStandardMaterial({ color: '#eef4f5', roughness: 0.05, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false })));
+    new THREE.MeshStandardMaterial({ color: '#eef4f5', roughness: 0.05, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false })));
 
   g.add(box(0.005, 0.005, 0.3, '#1b1b1d', 0, 0.002, -0.22)); // fabric cord out the back
   const a = new THREE.Object3D();
@@ -1011,4 +1011,53 @@ registerModel('runnen_decking', ({ width = 0.9, depth = 0.9, tone = '#a9753f' } 
     }
   mesh.userData.noShadow = true;
   return group(base, mesh);
+});
+
+// Braided jute runner: natural fibre braids sewn round and round in rectangular
+// rings, each ring leaning the other way (herringbone), with darker flecks.
+// size: [width, length] in metres, like the plain rug. Origin: centre, on the floor.
+registerModel('jute_runner', ({ size = [0.75, 2.8], color = '#cfa76a', braid = 0.035 } = {}) => {
+  const [W, L] = size, T = 0.012;
+  const k = Math.min(420, 1024 / Math.max(W, L)); // pixels per metre
+  const base = new THREE.Color(color);
+  const shade = (f) => `#${base.clone().multiplyScalar(f).getHexString()}`;
+  const map = drawn(Math.max(8, Math.round(W * k)), Math.max(8, Math.round(L * k)), (c, w, h) => {
+    const r = rng(Math.round(W * 100 + L * 1000 + 11)), bw = braid * k;
+    c.fillStyle = shade(0.72);
+    c.fillRect(0, 0, w, h);
+    c.lineCap = 'round';
+    const rings = Math.ceil(Math.min(w, h) / 2 / bw);
+    for (let ring = 0; ring < rings; ring++) {
+      const d = (ring + 0.5) * bw, x0 = d, x1 = w - d, y0 = d, y1 = h - d;
+      if (x1 < x0 || y1 < y0) break;
+      const lean = ring % 2 ? 1 : -1;
+      // walk round the ring, laying one strand of the braid every few pixels
+      const sides = [[x0, y0, x1, y0], [x1, y0, x1, y1], [x1, y1, x0, y1], [x0, y1, x0, y0]];
+      for (const [ax, ay, bx, by] of sides) {
+        const len = Math.hypot(bx - ax, by - ay), ux = len ? (bx - ax) / len : 1, uy = len ? (by - ay) / len : 0;
+        const step = bw * 0.34;
+        for (let t = 0; t <= len; t += step) {
+          const px = ax + ux * t, py = ay + uy * t;
+          // a strand crosses the braid at a slant
+          const sx = (ux * 0.55 + -uy * lean * 0.5) * bw, sy = (uy * 0.55 + ux * lean * 0.5) * bw;
+          c.strokeStyle = r() < 0.035 ? shade(0.5 + r() * 0.15) : shade(0.86 + r() * 0.3);
+          c.lineWidth = bw * (0.2 + r() * 0.08);
+          c.beginPath();
+          c.moveTo(px - sx, py - sy);
+          c.lineTo(px + sx, py + sy);
+          c.stroke();
+        }
+      }
+      // the seam between two braids
+      c.strokeStyle = 'rgba(70, 45, 15, 0.22)';
+      c.lineWidth = Math.max(1, bw * 0.07);
+      c.strokeRect(x0 - bw / 2, y0 - bw / 2, x1 - x0 + bw, y1 - y0 + bw);
+    }
+  });
+  const top = map ? new THREE.MeshStandardMaterial({ color: '#ffffff', map, bumpMap: map, bumpScale: 0.45, roughness: 1 }) : mat(color, { roughness: 1 });
+  const edge = mat(shade(0.8), { roughness: 1 });
+  const rug = new THREE.Mesh(new RoundedBoxGeometry(W, T, L, 2, T / 2), [edge, edge, top, edge, edge, edge]);
+  rug.position.y = T / 2;
+  rug.userData.noShadow = true;
+  return group(rug);
 });
