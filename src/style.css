@@ -99,6 +99,12 @@ body.night #plan, body.night #export, body.night #import, body.night #edit:not(.
   background: #fffdf8; padding: 5px 10px; cursor: pointer; min-width: 0;
 }
 #editor select { flex: 1; }
+#editor .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; align-items: end; }
+#editor .fields label { display: block; font-size: 11px; color: #8a7b66; }
+#editor .fields input {
+  display: block; width: 100%; box-sizing: border-box; margin-top: 2px; font: inherit; font-size: 13px; color: #3a332b;
+  border: 1.5px solid rgba(90, 70, 40, 0.18); border-radius: 9px; background: #fffdf8; padding: 4px 8px;
+}
 #editor .undo, #editor .redo { flex: 1; }
 #editor button:disabled { opacity: 0.4; cursor: default; }
 #editor .delete { margin-left: auto; color: #b3402e; }
@@ -106,7 +112,8 @@ body.night #plan, body.night #export, body.night #import, body.night #edit:not(.
 #editor p { margin: 4px 0 0; color: #8a7b66; font-size: 12px; line-height: 1.4; }
 body.night #editor { background: rgba(38, 42, 62, 0.9); color: #e8e6f0; }
 body.night #editor button:not(.add), body.night #editor select { background: #2c3150; border-color: rgba(200, 210, 255, 0.18); }
-body.night #editor p { color: #9aa0c0; }
+body.night #editor p, body.night #editor .fields label { color: #9aa0c0; }
+body.night #editor .fields input { background: #2c3150; border-color: rgba(200, 210, 255, 0.18); color: #e8e6f0; }
 
 /* control windows */
 .modal {

@@ -66,7 +66,58 @@ export function createEditor({ world, built, house, container, say }) {
     if (entry) selection.setFromObject(entry.object3d);
     nameEl.textContent = entry ? entry.def.id : 'Click an object to select it';
     panel.classList.toggle('has-selection', !!entry);
+    fill();
   }
+
+  // ── the number fields: turn, raise, and size in metres
+  const fields = Object.fromEntries([...panel.querySelectorAll('.fields input')].map((i) => [i.dataset.f, i]));
+  const resetSize = panel.querySelector('.reset-size');
+  const stretchOf = (entry) => entry.def.stretch ?? [1, 1, 1];
+  // the object's size as it stands now, measured along its own width / height / depth
+  function sizeNow(entry) {
+    const o = entry.object3d, turn = o.rotation.y;
+    o.rotation.y = 0;
+    o.updateMatrixWorld(true);
+    const size = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
+    o.rotation.y = turn;
+    o.updateMatrixWorld(true);
+    return [size.x, size.y, size.z];
+  }
+  function fill() {
+    if (!selected) return;
+    const [w, h, d] = sizeNow(selected), r2 = (n) => +n.toFixed(2);
+    fields.rot.value = selected.def.rot ?? 0;
+    fields.y.value = r2(selected.object3d.position.y);
+    fields.w.value = r2(w);
+    fields.h.value = r2(h);
+    fields.d.value = r2(d);
+    resetSize.hidden = !selected.def.stretch;
+  }
+  function editField(key) {
+    if (!selected) return;
+    const value = parseFloat(fields[key].value.replace(',', '.'));
+    if (!Number.isFinite(value)) return fill();
+    const entry = selected, before = poseOf(entry), pose = poseOf(entry);
+    if (key === 'rot') pose.rot = ((value + 180) % 360 + 360) % 360 - 180;
+    else if (key === 'y') {
+      const p = entry.object3d.position;
+      pose.at = [p.x, Math.max(0, value), p.z];
+    } else {
+      const axis = { w: 0, h: 1, d: 2 }[key], now = sizeNow(entry)[axis];
+      if (value <= 0 || now <= 0) return fill();
+      pose.stretch = [...stretchOf(entry)];
+      pose.stretch[axis] = Math.round(((pose.stretch[axis] * value) / now) * 1e4) / 1e4;
+    }
+    setPose(entry.def.id, pose);
+    recordPose(entry, before, key === 'rot' ? 'turn' : key === 'y' ? 'raise' : 'resize');
+  }
+  for (const key of Object.keys(fields)) fields[key].addEventListener('change', () => editField(key));
+  resetSize.addEventListener('click', () => {
+    if (!selected) return;
+    const entry = selected, before = poseOf(entry);
+    setPose(entry.def.id, { ...before, stretch: null });
+    recordPose(entry, before, 'resize');
+  });
 
   // ── undo / redo: each step knows how to reverse itself and how to redo itself
   const history = [];
@@ -97,8 +148,8 @@ export function createEditor({ world, built, house, container, say }) {
   const undo = () => step(history, future, 'undo', 'Undid');
   const redo = () => step(future, history, 'redo', 'Redid');
 
-  const poseOf = (entry) => ({ at: [...entry.def.at], rot: entry.def.rot ?? 0 });
-  const samePose = (a, b) => a.rot === b.rot && a.at.every((v, i) => v === b.at[i]);
+  const poseOf = (entry) => ({ at: [...entry.def.at], rot: entry.def.rot ?? 0, stretch: entry.def.stretch ? [...entry.def.stretch] : null });
+  const samePose = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   function setPose(id, pose) {
     const entry = built.objects.get(id);
     if (!entry) return;
@@ -106,6 +157,12 @@ export function createEditor({ world, built, house, container, say }) {
     entry.object3d.position.set(x, y, z);
     entry.def.rot = pose.rot;
     entry.object3d.rotation.y = THREE.MathUtils.degToRad(pose.rot);
+    // scale = the model's own scale times the stretch; swap the old stretch for the new one
+    const prev = stretchOf(entry), next = pose.stretch?.some((k) => Math.abs(k - 1) > 1e-3) ? pose.stretch : null;
+    const s = entry.object3d.scale;
+    s.set((s.x / prev[0]) * (next?.[0] ?? 1), (s.y / prev[1]) * (next?.[1] ?? 1), (s.z / prev[2]) * (next?.[2] ?? 1));
+    if (next) entry.def.stretch = [...next];
+    else delete entry.def.stretch;
     saveMove(entry);
     select(entry);
   }
@@ -135,8 +192,9 @@ export function createEditor({ world, built, house, container, say }) {
   function saveMove(entry) {
     const p = entry.object3d.position;
     const r = (n) => Math.round(n * 100) / 100;
-    entry.def.at = entry.def.at.length === 3 ? [r(p.x), r(p.y), r(p.z)] : [r(p.x), r(p.z)];
-    save({ op: 'move', floor: entry.floorId, id: entry.def.id, at: entry.def.at, rot: entry.def.rot ?? 0 });
+    entry.def.at = r(p.y) ? [r(p.x), r(p.y), r(p.z)] : [r(p.x), r(p.z)];
+    save({ op: 'move', floor: entry.floorId, id: entry.def.id, at: entry.def.at, rot: entry.def.rot ?? 0, stretch: entry.def.stretch ?? null });
+    if (entry === selected) fill();
   }
 
   function rotate(dir) {

@@ -28,6 +28,14 @@
         <button class="rot-right" title="Rotate right (Shift+R)">⟳</button>
         <button class="delete" title="Remove (Delete)">Remove</button>
       </div>
+      <div class="fields selection-only">
+        <label>Turn (°)<input data-f="rot" type="number" step="15"></label>
+        <label title="How far above the floor it sits, e.g. on a desk">Raise (m)<input data-f="y" type="number" step="0.05" min="0"></label>
+        <label>Width (m)<input data-f="w" type="number" step="0.05" min="0.01"></label>
+        <label>Depth (m)<input data-f="d" type="number" step="0.05" min="0.01"></label>
+        <label>Height (m)<input data-f="h" type="number" step="0.05" min="0.01"></label>
+        <button class="reset-size" title="Back to the model's own size">Original size</button>
+      </div>
       <div class="row">
         <button class="undo" title="Undo (Ctrl+Z)">↶ Undo</button>
         <button class="redo" title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
@@ -36,7 +44,7 @@
         <select></select>
         <button class="add">Add</button>
       </div>
-      <p>Drag to move · R to rotate · Delete to remove · Ctrl+Z to undo. Changes are saved to house.yaml.</p>
+      <p>Drag to move · R to rotate · Delete to remove · Ctrl+Z to undo. Type a number to turn, raise or resize. Changes are saved as you go.</p>
     </aside>
     <div id="climate" class="modal" hidden></div>
     <div id="camera" class="modal" hidden></div>
