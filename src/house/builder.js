@@ -183,6 +183,10 @@ function buildWall(w, cfg, center) {
     g.add(plinth);
   }
 
+  // Low inside walls can grow a taller piece behind things mounted above them
+  // (see raiseWalls); this is what such a piece is made of.
+  if (!w.exterior && w.height == null && h < cfg.height - 0.05) g.userData.rise = { len, t, h, max: cfg.height, wallMat, skins, pieces: null };
+
   if (w.exterior) {
     // Exterior walls facing the camera drop to a low stub so you can see inside.
     // (animated: the wall sinks rather than popping)
@@ -288,9 +292,109 @@ export async function buildHouse(house) {
     return shown ? shown.level * house.floorHeight + 0.6 : (floors.length * house.floorHeight) / 2 - 1;
   }
 
+  // Inside walls are low so you can look into the rooms, which leaves a shelf
+  // mounted above them floating in the air. Wherever something hangs against
+  // such a wall, higher than the wall, that stretch of wall stands up behind it.
+  const RISE_GAP = 0.15; // how close to the wall counts as "against it"
+  const RISE_PAD = 0.12; // how far the raised piece reaches past the object
+  const box = new THREE.Box3(), here = new THREE.Vector3(), corner = new THREE.Vector3();
+  // the object's box around its own position, as if it were not turned
+  function ownBox(entry) {
+    const o = entry.object3d, key = `${o.scale.x},${o.scale.y},${o.scale.z}`;
+    if (entry.riseBox?.key !== key) {
+      const turn = o.rotation.y;
+      o.rotation.y = 0;
+      o.updateWorldMatrix(true, true);
+      box.setFromObject(o);
+      o.getWorldPosition(here);
+      entry.riseBox = { key, empty: box.isEmpty(), min: box.min.clone().sub(here), max: box.max.clone().sub(here) };
+      o.rotation.y = turn;
+      o.updateWorldMatrix(false, true);
+    }
+    return entry.riseBox;
+  }
+  function raiseWalls(f) {
+    const walls = f.group.children.filter((c) => c.userData.rise);
+    for (const wall of walls) {
+      wall.userData.rise.pieces?.removeFromParent();
+      wall.userData.rise.pieces = null;
+    }
+    if (!walls.length) return;
+    const spans = new Map(walls.map((wall) => [wall, []]));
+    for (const entry of objects.values()) {
+      if (entry.floorId !== f.id) continue;
+      const o = entry.object3d, b = ownBox(entry);
+      if (b.empty) continue;
+      const bottom = o.position.y + b.min.y, top = o.position.y + b.max.y;
+      if (bottom < 0.3) continue; // stands on the floor: needs no wall to hang on
+      o.updateWorldMatrix(true, false);
+      o.getWorldPosition(here);
+      const cos = Math.cos(o.rotation.y), sin = Math.sin(o.rotation.y);
+      const widest = Math.max(b.max.x - b.min.x, b.max.z - b.min.z);
+      for (const wall of walls) {
+        const { len, t, h, max } = wall.userData.rise;
+        if (top < h + 0.02) continue;
+        wall.updateWorldMatrix(true, false);
+        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+        for (const x of [b.min.x, b.max.x]) for (const z of [b.min.z, b.max.z]) {
+          wall.worldToLocal(corner.set(here.x + x * cos + z * sin, here.y, here.z - x * sin + z * cos));
+          x0 = Math.min(x0, corner.x); x1 = Math.max(x1, corner.x);
+          z0 = Math.min(z0, corner.z); z1 = Math.max(z1, corner.z);
+        }
+        if (z0 > t / 2 + RISE_GAP || z1 < -t / 2 - RISE_GAP) continue; // not against this wall
+        // it has to lie along the wall, not just touch it with one end
+        const along = Math.min(x1, len) - Math.max(x0, 0);
+        if (along < Math.max(0.1, widest * 0.5)) continue;
+        spans.get(wall).push([Math.max(x0 - RISE_PAD, -t / 2), Math.min(x1 + RISE_PAD, len + t / 2), Math.min(max, top + RISE_PAD)]);
+      }
+    }
+    for (const [wall, list] of spans) {
+      if (!list.length) continue;
+      const { t, h, wallMat, skins } = wall.userData.rise;
+      const pieces = new THREE.Group();
+      list.sort((a, b) => a[0] - b[0]);
+      const merged = [];
+      for (const s of list) {
+        const last = merged.at(-1);
+        if (last && s[0] <= last[1]) { last[1] = Math.max(last[1], s[1]); last[2] = Math.max(last[2], s[2]); }
+        else merged.push([...s]);
+      }
+      for (const [a, b, y] of merged) {
+        if (b - a < 1e-3 || y - h < 1e-3) continue;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(b - a, y - h, t), wallMat);
+        m.position.set((a + b) / 2, (h + y) / 2, 0);
+        m.castShadow = m.receiveShadow = true;
+        pieces.add(m);
+        for (const { mat, sign } of skins) {
+          const skin = new THREE.Mesh(new THREE.BoxGeometry(b - a, y - h, 0.02), mat);
+          skin.position.set((a + b) / 2, (h + y) / 2, sign * (t / 2 + 0.01));
+          skin.receiveShadow = true;
+          pieces.add(skin);
+        }
+      }
+      wall.add(pieces);
+      wall.userData.rise.pieces = pieces;
+    }
+  }
+  // a number that changes whenever an object on the floor is added, removed, moved, turned or resized
+  function layoutKey(f) {
+    let k = f.wallsVersion ?? 0;
+    for (const { floorId, object3d: o } of objects.values()) {
+      if (floorId !== f.id) continue;
+      const p = o.position, s = o.scale;
+      k = (k * 31 + 7 + p.x * 1009 + p.y * 1777 + p.z * 2333 + o.rotation.y * 3119 + s.x * 4111 + s.y * 5113 + s.z * 6007) % 1e9;
+    }
+    return k;
+  }
+
   // called every frame: eases floors and walls towards where they should be
   function update(cameraDir, dt) {
     for (const f of floors) {
+      const key = layoutKey(f);
+      if (key !== f.layoutKey) {
+        f.layoutKey = key;
+        raiseWalls(f);
+      }
       if (f.offset !== f.offsetTarget) {
         f.offset = THREE.MathUtils.damp(f.offset, f.offsetTarget, 5, dt);
         if (Math.abs(f.offset - f.offsetTarget) < 0.01) f.offset = f.offsetTarget;
@@ -340,6 +444,7 @@ export async function buildHouse(house) {
     if (!f) return;
     for (const child of [...f.group.children]) if (child.userData.isWall) child.removeFromParent();
     f.cutaways.length = 0;
+    f.wallsVersion = (f.wallsVersion ?? 0) + 1; // new walls: work out the raised pieces again
     for (const w of wallList ?? []) {
       const wall = buildWall(w, f.cfg, f.center);
       wall.userData.isWall = true;
