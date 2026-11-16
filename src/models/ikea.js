@@ -27,7 +27,7 @@ const WHITE = '#f2f1ec', BLACKBROWN = '#2b2522', BIRCH = '#d9b88a', PINE = '#dcb
 export const IKEA_MODELS = [
   'billy_bookcase', 'kallax_shelf', 'malm_dresser', 'malm_bed', 'lack_side_table', 'ektorp_sofa', 'strandmon_chair',
   'pax_wardrobe', 'besta_tv_bench', 'alex_desk', 'linnmon_table', 'rast_nightstand', 'adde_chair', 'lisabo_table',
-  'ivar_shelving', 'hektar_floor_lamp', 'trofast_storage', 'bekant_desk', 'klippan_loveseat', 'vittsjo_shelf', 'elvarli_shelf', 'elvarli_unit', 'poang_armchair', 'poang_footstool', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'tarnaby_table_lamp', 'runnen_decking',
+  'ivar_shelving', 'hektar_floor_lamp', 'trofast_storage', 'bekant_desk', 'klippan_loveseat', 'vittsjo_shelf', 'elvarli_shelf', 'elvarli_unit', 'poang_armchair', 'poang_footstool', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'tarnaby_table_lamp', 'runnen_decking', 'pugg_wall_clock',
 ];
 
 // BILLY bookcase 80 x 28 x 202, with a few books

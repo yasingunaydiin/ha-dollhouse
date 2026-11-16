@@ -20,7 +20,7 @@ function cyl(rTop, rBottom, h, color, x = 0, y = 0, z = 0, extra = {}) {
 }
 const group = (...c) => { const g = new THREE.Group(); if (c.length) g.add(...c); return g; };
 
-export const DECOR_MODELS = ['antwerp_map_poster', 'orchestra_poster', 'monstera_large', 'round_wood_side_table', 'barometer_floor_lamp', 'maul_study_lamp', 'led_strip', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'wavy_black_mirror', 'glass_globe_floor_lamp', 'arch_mirror_led', 'dark_oak_shelf', 'sheer_curtains', 'wood_slat_fence', 'wood_slat_gate', 'bamboo_pendant_lamp', 'flat_white_door', 'ivy_hedge_led', 'wood_trellis', 'gravel_patch', 'grass_patch', 'soil_patch', 'bark_mulch_patch', 'sand_patch', 'paving_patch', 'street_lamp', 'oak_tree', 'clothes_rail', 'tarnaby_table_lamp', 'runnen_decking', 'jute_runner'];
+export const DECOR_MODELS = ['antwerp_map_poster', 'orchestra_poster', 'monstera_large', 'round_wood_side_table', 'barometer_floor_lamp', 'maul_study_lamp', 'led_strip', 'vecklarfly_blinds', 'vecklarfly_blinds_dark', 'wavy_black_mirror', 'glass_globe_floor_lamp', 'arch_mirror_led', 'dark_oak_shelf', 'sheer_curtains', 'wood_slat_fence', 'wood_slat_gate', 'bamboo_pendant_lamp', 'flat_white_door', 'ivy_hedge_led', 'wood_trellis', 'gravel_patch', 'grass_patch', 'soil_patch', 'bark_mulch_patch', 'sand_patch', 'paving_patch', 'street_lamp', 'oak_tree', 'clothes_rail', 'tarnaby_table_lamp', 'runnen_decking', 'jute_runner', 'anthracite_floor_tiles', 'peacock_wall_tapestry', 'pugg_wall_clock', 'oak_laminate_floor'];
 
 // picture frame with the print behind glass
 function framed({ width, height, map, fallback, frame, rim }) {
@@ -1060,4 +1060,272 @@ registerModel('jute_runner', ({ size = [0.75, 2.8], color = '#cfa76a', braid = 0
   rug.position.y = T / 2;
   rug.userData.noShadow = true;
   return group(rug);
+});
+
+// Anthracite bathroom floor tiles: large matt concrete-look porcelain with thin light
+// grout lines. Origin: centre, on the floor. width / depth set the tiled area, `tile`
+// the size of one tile (0.6 = 60 x 60 cm). The pattern repeats, so stretching is fine.
+registerModel('anthracite_floor_tiles', ({ width = 1.8, depth = 1.8, tile = 0.6, color = '#4b4e52', grout = '#9a9c9d' } = {}) => {
+  const base = new THREE.Color(color);
+  const shade = (f, a = 1) => `#${base.clone().multiplyScalar(f).getHexString()}${Math.round(a * 255).toString(16).padStart(2, '0')}`;
+  const N = 2, PX = 512, T = PX / N; // the texture holds 2 x 2 tiles, so neighbours differ
+  return group(flatPatch({
+    width, depth, thickness: 0.01, side: color, tile: tile * N, px: PX, rough: 0.62,
+    draw: (c, w, h) => {
+      const r = rng(47), line = Math.max(2, Math.round(T * 0.003 / tile));
+      c.fillStyle = grout; c.fillRect(0, 0, w, h);
+      for (let tx = 0; tx < N; tx++)
+        for (let tz = 0; tz < N; tz++) {
+          const x = tx * T + line / 2, y = tz * T + line / 2, s = T - line;
+          c.save();
+          c.beginPath(); c.rect(x, y, s, s); c.clip();
+          c.fillStyle = shade(0.94 + r() * 0.12); c.fillRect(x, y, s, s);
+          // soft clouds, like poured concrete
+          for (let i = 0; i < 26; i++) {
+            const cx = x + r() * s, cy = y + r() * s, rad = s * (0.12 + r() * 0.3);
+            const g = c.createRadialGradient(cx, cy, 0, cx, cy, rad);
+            g.addColorStop(0, shade(r() < 0.5 ? 0.6 : 1.45, 0.3));
+            g.addColorStop(1, shade(1, 0));
+            c.fillStyle = g; c.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
+          }
+          // fine grain
+          for (let i = 0; i < 1500; i++) { c.fillStyle = shade(r() < 0.5 ? 0.6 : 1.6, 0.22); c.fillRect(x + r() * s, y + r() * s, 1 + r() * 1.5, 1 + r() * 1.5); }
+          c.restore();
+        }
+    },
+  }));
+});
+
+// a colour scaled by f, as a canvas fill style with alpha
+const tint = (color) => { const base = new THREE.Color(color); return (f, a = 1) => `#${base.clone().multiplyScalar(f).getHexString()}${Math.round(a * 255).toString(16).padStart(2, '0')}`; };
+
+// Woven wall tapestry: two peacocks on a balustrade before a mosque and a red sky,
+// in an oval on a dark flowered field, red fringe down both short sides, hung from
+// wooden pegs. Origin: bottom centre, back against the wall, front +z.
+registerModel('peacock_wall_tapestry', ({ width = 1.5, height = 1.0 } = {}) => {
+  const map = drawn(900, 600, (c, w, h) => {
+    const r = rng(61);
+    const blob = (x, y, rx, ry, col, rot = 0) => { c.fillStyle = col; c.beginPath(); c.ellipse(x, y, rx, ry, rot, 0, 7); c.fill(); };
+    c.fillStyle = '#1d1c20'; c.fillRect(0, 0, w, h);
+    // field: a lattice with red blossoms above and pale ones below
+    for (let x = 60; x < w - 45; x += 30)
+      for (let y = 60; y < h - 45; y += 30) {
+        c.strokeStyle = '#565a62'; c.lineWidth = 1.5;
+        c.beginPath(); c.moveTo(x, y - 13); c.lineTo(x + 13, y); c.lineTo(x, y + 13); c.lineTo(x - 13, y); c.closePath(); c.stroke();
+        const col = y < h * 0.45 ? '#c2283a' : ['#d9c8ae', '#c9a3a0', '#e0b34a'][Math.floor(r() * 2.2)];
+        for (let k = 0; k < 4; k++) blob(x + Math.cos(k * 1.57 + 0.8) * 4, y + Math.sin(k * 1.57 + 0.8) * 4, 4, 2.6, col, k * 1.57 + 0.8);
+      }
+    // outer border: scrolling leaves and flowers
+    const cols = ['#9fb3a4', '#d9c9b0', '#c98f8f', '#7f9a86', '#b9c9c9'];
+    const motif = (x, y) => { for (let k = 0; k < 5; k++) blob(x + (r() - 0.5) * 22, y + (r() - 0.5) * 16, 4 + r() * 6, 2.5 + r() * 3, cols[Math.floor(r() * cols.length)], r() * 3.14); };
+    c.fillStyle = '#19181b';
+    c.fillRect(0, 0, w, 40); c.fillRect(0, h - 40, w, 40); c.fillRect(0, 0, 40, h); c.fillRect(w - 40, 0, 40, h);
+    for (let x = 20; x < w; x += 26) { motif(x, 20); motif(x, h - 20); }
+    for (let y = 46; y < h - 40; y += 26) { motif(20, y); motif(w - 20, y); }
+    c.strokeStyle = '#e9e4d6'; c.lineWidth = 2.5; c.strokeRect(43, 43, w - 86, h - 86);
+    c.strokeStyle = '#2a2a2e'; c.lineWidth = 2; c.strokeRect(5, 5, w - 10, h - 10);
+
+    // the oval scene
+    const CX = w / 2, CY = h / 2, RX = 335, RY = 238;
+    c.save();
+    c.beginPath(); c.ellipse(CX, CY, RX, RY, 0, 0, 7); c.clip();
+    c.fillStyle = '#b3202f'; c.fillRect(0, 0, w, h); // red sky
+    for (let i = 0; i < 500; i++) blob(r() * w, 60 + r() * 170, 6 + r() * 14, 2 + r() * 3, r() < 0.5 ? '#9c1a2a55' : '#cf3a4555');
+    c.fillStyle = '#e6c88f'; // glowing horizon with a ragged upper edge
+    c.beginPath(); c.moveTo(0, 300);
+    for (let x = 0; x <= w; x += 9) c.lineTo(x, 222 - r() * 26 - (r() < 0.12 ? 22 : 0));
+    c.lineTo(w, 300); c.fill();
+    for (let x = 100; x < w - 100; x += 7) blob(x, 268 + r() * 14, 7 + r() * 6, 8 + r() * 12, ['#a65a2c', '#8d4a26', '#c0763a'][Math.floor(r() * 3)]); // far trees
+    c.fillStyle = '#a9c7cf'; c.fillRect(0, 290, w, 100); // water
+    for (let i = 0; i < 60; i++) blob(r() * w, 296 + r() * 88, 14 + r() * 26, 1.2, '#dfeef0aa');
+    // mosque across the water
+    const mx = 300, my = 292, stone = '#ecd9c4', shadeC = '#b98a72';
+    for (const [dx, hh] of [[-62, 150], [-34, 118], [34, 118], [62, 150]]) {
+      c.fillStyle = stone; c.fillRect(mx + dx - 3, my - hh, 6, hh);
+      c.beginPath(); c.moveTo(mx + dx - 4, my - hh); c.lineTo(mx + dx, my - hh - 22); c.lineTo(mx + dx + 4, my - hh); c.fill();
+      c.fillStyle = shadeC; c.fillRect(mx + dx - 5, my - hh * 0.62, 10, 3); c.fillRect(mx + dx - 5, my - hh * 0.82, 10, 3);
+    }
+    c.fillStyle = stone; c.fillRect(mx - 46, my - 44, 92, 44);
+    blob(mx, my - 46, 30, 30, stone); blob(mx - 34, my - 44, 13, 12, stone); blob(mx + 34, my - 44, 13, 12, stone);
+    blob(mx, my - 52, 22, 20, '#b0705a');
+    c.fillStyle = shadeC; for (let k = -3; k <= 3; k++) { c.beginPath(); c.arc(mx + k * 12, my - 14, 4, Math.PI, 0); c.rect(mx + k * 12 - 4, my - 14, 8, 12); c.fill(); }
+    c.fillStyle = stone; c.fillRect(mx - 1, my - 96, 2, 20);
+    // blossom trees left and right
+    for (const [tx, dir] of [[185, 1], [715, -1]]) {
+      c.strokeStyle = '#3a211a'; c.lineCap = 'round';
+      for (let k = 0; k < 7; k++) {
+        c.lineWidth = 5 - k * 0.5;
+        const ex = tx + dir * (k - 2) * 20 + (r() - 0.5) * 20, ey = 120 + r() * 80;
+        c.beginPath(); c.moveTo(tx - dir * 20, 400); c.quadraticCurveTo(tx, 280, ex, ey); c.stroke();
+        for (let j = 0; j < 4; j++) { const fx = ex + (r() - 0.5) * 36, fy = ey + (r() - 0.5) * 36; for (let p = 0; p < 5; p++) blob(fx + Math.cos(p * 1.26) * 5, fy + Math.sin(p * 1.26) * 5, 4.5, 3, r() < 0.6 ? '#efe6d6' : '#d98a96', p * 1.26); }
+      }
+    }
+    // garden: dark ground, shrubs, the white balustrade
+    c.fillStyle = '#17181a'; c.fillRect(0, 385, w, h);
+    for (let i = 0; i < 260; i++) { const x = 110 + r() * 680, y = 330 + r() * 80; if (Math.abs(x - CX) < 150 && y < 380) continue; blob(x, y, 3 + r() * 4, 9 + r() * 12, ['#3f5a3a', '#55734a', '#2f4630', '#8f8fb4'][Math.floor(r() * 4)], (r() - 0.5) * 1.2); }
+    c.fillStyle = '#efeadd'; c.fillRect(120, 392, 660, 16); c.fillRect(120, 452, 660, 12);
+    for (let x = 150; x < 770; x += 42) { blob(x, 430, 9, 20, '#efeadd'); blob(x, 430, 4, 15, '#c9c2b2'); }
+    // flower bed in front
+    for (let i = 0; i < 520; i++) {
+      const x = 130 + r() * 640, y = 455 + r() * 90;
+      blob(x, y, 3 + r() * 5, 5 + r() * 9, ['#3f5a3a', '#55734a', '#c44a55', '#d9a13a', '#e7d9c2', '#9a86b8', '#b8696f'][Math.floor(r() * 7)], (r() - 0.5) * 2);
+    }
+    for (let k = 0; k < 5; k++) { const x = CX - 26 + k * 13; c.strokeStyle = '#55734a'; c.lineWidth = 3; c.beginPath(); c.moveTo(x, 470); c.lineTo(x, 380 - (k % 2) * 16); c.stroke(); for (let j = 0; j < 7; j++) blob(x + (j % 2 ? 4 : -4), 372 - (k % 2) * 16 + j * 9, 5, 4, j % 3 ? '#e2b53c' : '#f0d77a'); }
+    // the two peacocks, facing each other
+    const peacock = (px, dir) => {
+      c.save(); c.translate(px, 292); c.scale(dir * 0.94, 0.94);
+      c.strokeStyle = '#c9a23a'; c.lineWidth = 3; c.beginPath(); c.moveTo(6, 0); c.lineTo(8, 100); c.moveTo(20, -4); c.lineTo(24, 100); c.stroke();
+      c.beginPath(); c.moveTo(-10, -30); c.bezierCurveTo(-95, 10, -155, 150, -98, 238); c.bezierCurveTo(-62, 262, -12, 242, 4, 200); c.bezierCurveTo(40, 120, 40, 40, 18, -12); c.closePath();
+      c.fillStyle = '#b6c39b'; c.fill(); c.strokeStyle = '#3d4a36'; c.lineWidth = 2.5; c.stroke();
+      c.save(); c.clip();
+      for (let i = 0; i < 260; i++) { const y = -20 + r() * 270, x = -150 + r() * 190; c.strokeStyle = r() < 0.5 ? '#6f8560' : '#dfe6c8'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(x, y); c.lineTo(x - 5, y + 12); c.stroke(); }
+      for (let i = 0; i < 9; i++) {
+        const t = i / 8, cy = 14 + t * 208, cx = -10 - t * 50, half = 16 + 44 * Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.8), n = 2 + Math.round(half / 15);
+        for (let k = 0; k < n; k++) {
+          const x = cx + (n > 1 ? (k / (n - 1) - 0.5) * 2 * half : 0) + (i % 2 ? 6 : -6);
+          blob(x, cy, 8, 11, '#eef0dc'); blob(x, cy + 1, 5.5, 8, '#4d6a58'); blob(x, cy + 2, 3.6, 5.5, (i + k) % 2 ? '#d83a3a' : '#e8b73a');
+        }
+      }
+      c.restore();
+      blob(4, -22, 40, 25, '#8793a8', -0.5);
+      for (let i = 0; i < 26; i++) { const a = r() * 6.28, q = r(); c.strokeStyle = '#2f3644'; c.lineWidth = 1.5; c.beginPath(); c.arc(4 + Math.cos(a) * 30 * q, -22 + Math.sin(a) * 17 * q, 5, 0.3, 2.6); c.stroke(); }
+      c.strokeStyle = '#7f9cb0'; c.lineWidth = 13; c.lineCap = 'round'; c.beginPath(); c.moveTo(28, -36); c.quadraticCurveTo(46, -72, 32, -104); c.stroke();
+      c.strokeStyle = '#3b5568'; c.lineWidth = 1.5; for (let k = 0; k < 6; k++) { c.beginPath(); c.arc(36, -48 - k * 9, 6, 0.4, 2.7); c.stroke(); }
+      blob(33, -108, 9, 8, '#6f8ea6'); blob(36, -110, 1.8, 1.8, '#111');
+      c.fillStyle = '#d9b24a'; c.beginPath(); c.moveTo(41, -111); c.lineTo(53, -106); c.lineTo(41, -104); c.fill();
+      c.strokeStyle = '#3b5568'; c.lineWidth = 1.5; for (const a of [-0.5, -0.15, 0.2]) { c.beginPath(); c.moveTo(31, -115); c.lineTo(31 + Math.sin(a) * 16, -115 - Math.cos(a) * 16); c.stroke(); blob(31 + Math.sin(a) * 16, -115 - Math.cos(a) * 16, 2.4, 2.4, '#d98a96'); }
+      c.restore();
+    };
+    peacock(400, 1); peacock(520, -1);
+    c.restore();
+    // the scalloped rim of the oval
+    for (let i = 0; i < 96; i++) { const a = i / 96 * 6.283; blob(CX + Math.cos(a) * (RX - 5), CY + Math.sin(a) * (RY - 5), 9, 5, i % 2 ? '#a9bca9' : '#d9c0b4', a + 1.57); }
+    c.strokeStyle = '#ece7da'; c.lineWidth = 3; c.beginPath(); c.ellipse(CX, CY, RX + 3, RY + 3, 0, 0, 7); c.stroke();
+    // the weave
+    for (let y = 0; y < h; y += 3) { c.fillStyle = '#00000018'; c.fillRect(0, y, w, 1); }
+    for (let i = 0; i < 14000; i++) { c.fillStyle = r() < 0.5 ? '#00000022' : '#ffffff18'; c.fillRect(r() * w, r() * h, 2, 1); }
+  });
+  const Z = 0.014, T = 0.006;
+  const front = map ? new THREE.MeshStandardMaterial({ color: '#ffffff', map, bumpMap: map, bumpScale: 0.25, roughness: 1 }) : mat('#7a2a30', { roughness: 1 });
+  const back = mat('#2a2326', { roughness: 1 });
+  const cloth = new THREE.Mesh(new THREE.BoxGeometry(width, height, T), [back, back, back, back, front, back]);
+  cloth.position.set(0, height / 2, Z);
+  const g = group(cloth);
+  // red fringe down both short sides
+  const n = Math.round(height / 0.007), r = rng(5);
+  const fringe = new THREE.InstancedMesh(new THREE.BoxGeometry(0.045, 0.004, 0.003), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1 }), n * 2);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color(), one = new THREE.Vector3(1, 1, 1);
+  for (let i = 0; i < n * 2; i++) {
+    const side = i < n ? -1 : 1, y = ((i % n) + 0.5) / n * height, droop = 0.5 + r() * 0.6, len = 0.0225;
+    e.set(0, 0, -side * droop); q.setFromEuler(e);
+    m.compose(new THREE.Vector3(side * (width / 2 + Math.cos(droop) * len - 0.004), y - Math.sin(droop) * len, Z + (r() - 0.5) * 0.004), q, one);
+    fringe.setMatrixAt(i, m);
+    fringe.setColorAt(i, col.set('#a81c2c').multiplyScalar(0.75 + r() * 0.5));
+  }
+  g.add(fringe);
+  // four wooden pegs along the top
+  for (let i = 0; i < 4; i++) {
+    const x = -width / 2 + 0.03 + i * (width - 0.06) / 3;
+    g.add(box(0.028, 0.07, 0.012, '#9a6238', x, height - 0.02, 0.006, 0.004));
+    const peg = cyl(0.007, 0.007, 0.03, '#8a5530', 0, 0, 0);
+    peg.rotation.x = Math.PI / 2; peg.position.set(x, height + 0.012, 0.022);
+    g.add(peg);
+  }
+  return g;
+});
+
+// IKEA PUGG wall clock: 32 cm, polished steel rim, white dial with bold numerals
+// under a domed glass. Origin: bottom centre, back against the wall, front +z.
+registerModel('pugg_wall_clock', ({ diameter = 0.32, hour = 10, minute = 10 } = {}) => {
+  const R = diameter / 2, k = R / 0.16, FACE = 0.022 * k, A = R - 0.03 * k;
+  const g = group();
+  const steel = mat('#dfe2e6', { metalness: 0.45, roughness: 0.25 });
+  const profile = [[0, 0], [R, 0], [R, 0.03 * k], [R - 0.007 * k, 0.041 * k], [R - 0.018 * k, 0.041 * k], [R - 0.026 * k, 0.034 * k]].map(([x, y]) => new THREE.Vector2(x, y));
+  const rim = new THREE.Mesh(new THREE.LatheGeometry(profile, 64).rotateX(Math.PI / 2), steel);
+  const inner = new THREE.Mesh(new THREE.LatheGeometry([new THREE.Vector2(R - 0.026 * k, 0.034 * k), new THREE.Vector2(A, FACE)], 64).rotateX(Math.PI / 2), mat('#1c1c1e', { roughness: 0.5, side: THREE.DoubleSide }));
+  const map = drawn(768, 768, (c, w) => {
+    const C = w / 2;
+    c.fillStyle = '#f2f2f0'; c.fillRect(0, 0, w, w);
+    c.strokeStyle = '#1a1a1a'; c.fillStyle = '#1a1a1a';
+    c.lineWidth = 2.5; for (const rad of [0.985, 0.9]) { c.beginPath(); c.arc(C, C, C * rad, 0, 7); c.stroke(); }
+    for (let i = 0; i < 60; i++) {
+      const a = i / 60 * Math.PI * 2, s = Math.sin(a), co = -Math.cos(a);
+      c.lineWidth = i % 5 ? 2.5 : 9;
+      c.beginPath(); c.moveTo(C + s * C * 0.9, C + co * C * 0.9); c.lineTo(C + s * C * 0.985, C + co * C * 0.985); c.stroke();
+    }
+    c.font = `bold ${Math.round(w * 0.135)}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    for (let i = 1; i <= 12; i++) { const a = i / 12 * Math.PI * 2; c.fillText(String(i), C + Math.sin(a) * C * 0.7, C - Math.cos(a) * C * 0.7 + w * 0.008); }
+    c.font = `${Math.round(w * 0.03)}px Helvetica, Arial, sans-serif`; c.fillText('quartz', C, C + C * 0.36);
+  });
+  const face = new THREE.Mesh(new THREE.CircleGeometry(A, 64), textured(map, '#f2f2f0', { roughness: 0.5 }));
+  face.position.z = FACE;
+  const black = { roughness: 0.4 };
+  const hand = (len, wid, tail, angle, z) => {
+    const h = new THREE.Mesh(new THREE.BoxGeometry(wid, len + tail, 0.0015 * k), mat('#111112', black));
+    h.position.y = (len - tail) / 2;
+    const pivot = group(h);
+    pivot.position.z = z; pivot.rotation.z = -angle;
+    return pivot;
+  };
+  const hands = group(
+    hand(A * 0.56, 0.011 * k, A * 0.14, ((hour % 12) + minute / 60) / 12 * Math.PI * 2, FACE + 0.004 * k),
+    hand(A * 0.86, 0.008 * k, A * 0.16, minute / 60 * Math.PI * 2, FACE + 0.007 * k),
+  );
+  const hub = cyl(0.006 * k, 0.006 * k, 0.01 * k, '#111112', 0, 0, 0, black);
+  hub.rotation.x = Math.PI / 2; hub.position.set(0, 0, FACE + 0.005 * k);
+  // domed glass
+  const dome = 0.016 * k, RS = (A * A + dome * dome) / (2 * dome);
+  const glass = new THREE.Mesh(new THREE.SphereGeometry(RS, 48, 8, 0, Math.PI * 2, 0, Math.asin(A / RS)).rotateX(Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: 0.08, roughness: 0.05, depthWrite: false }));
+  glass.position.z = FACE + 0.008 * k + dome - RS;
+  glass.userData.noShadow = true;
+  g.add(rim, inner, face, hands, hub, glass);
+  g.children.forEach((ch) => { ch.position.y += R; });
+  return g;
+});
+
+// Oak laminate floor ("eiken premium"): wide light-oak planks with soft grain, a few
+// knots and staggered end joints, running along z. Origin: centre, on the floor.
+// width / depth set the area, `plank` the plank width. Repeats, so stretching is fine.
+registerModel('oak_laminate_floor', ({ width = 3, depth = 3, plank = 0.24, color = '#d9bf98' } = {}) => {
+  const COLS = 4, LEN = 2.4, T = 0.008, shade = tint(color);
+  const map = drawn(512, 1024, (c, w, h) => {
+    const r = rng(83), pw = w / COLS, L = h / 2;
+    c.fillStyle = color; c.fillRect(0, 0, w, h);
+    for (let col = 0; col < COLS; col++) {
+      const x0 = col * pw, joint = Math.round(r() * h);
+      for (let p = 0; p < 2; p++) {
+        const seed = 100 + col * 7 + p * 3;
+        // each plank is drawn twice with the same grain so it wraps round the texture edge
+        for (const y0 of [joint + p * L, joint + p * L - h]) {
+          const q = rng(seed);
+          c.save(); c.beginPath(); c.rect(x0, y0, pw, L); c.clip();
+          c.fillStyle = shade(0.93 + q() * 0.14); c.fillRect(x0, y0, pw, L);
+          for (let i = 0; i < 90; i++) {
+            const x = x0 + q() * pw, dx = (q() - 0.5) * 10;
+            c.strokeStyle = q() < 0.6 ? shade(0.72, 0.06 + q() * 0.12) : shade(1.2, 0.08 + q() * 0.1);
+            c.lineWidth = 0.6 + q() * 2.2;
+            c.beginPath(); c.moveTo(x, y0); c.bezierCurveTo(x + dx, y0 + L * 0.3, x - dx, y0 + L * 0.7, x + dx * 0.5, y0 + L); c.stroke();
+          }
+          for (let i = 0, n = Math.floor(q() * 2.4); i < n; i++) {
+            const kx = x0 + pw * (0.2 + q() * 0.6), ky = y0 + L * (0.1 + q() * 0.8);
+            c.fillStyle = shade(0.5, 0.45); c.beginPath(); c.ellipse(kx, ky, 3, 5.5, 0, 0, 7); c.fill();
+            c.strokeStyle = shade(0.68, 0.22); c.lineWidth = 1.2;
+            for (let k = 1; k <= 3; k++) { c.beginPath(); c.ellipse(kx, ky, 3 + k * 3, 5.5 + k * 9, 0, 0, 7); c.stroke(); }
+          }
+          c.restore();
+          c.fillStyle = shade(0.55, 0.5); c.fillRect(x0, y0, pw, 1.5); // end joint
+        }
+      }
+      c.fillStyle = shade(0.55, 0.5); c.fillRect(x0, 0, 1.5, h); // seam between planks
+    }
+  });
+  if (map) { map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(width / (COLS * plank), depth / LEN); }
+  const top = map ? new THREE.MeshStandardMaterial({ color: '#ffffff', map, roughness: 0.55 }) : mat(color, { roughness: 0.55 });
+  const side = mat(shade(0.8), { roughness: 0.8 });
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(width, T, depth), [side, side, top, side, side, side]);
+  floor.position.y = T / 2;
+  floor.userData.noShadow = true;
+  return group(floor);
 });
