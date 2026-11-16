@@ -2,7 +2,7 @@
 // data/house.yaml) and the browser (which, on a static site with no server,
 // keeps the edited house in localStorage).
 //   { op: 'move' | 'remove' | 'add', floor, id, at, rot, stretch, def }
-//   { op: 'setFloor', floor, wallList, objects }  (floor-plan editor)
+//   { op: 'setFloor', floor, wallList, objects, rooms }  (floor-plan editor)
 // Edits use the YAML document API so comments and layout in the file survive.
 import { parseDocument } from 'yaml';
 
@@ -13,8 +13,8 @@ export function applyEdit(text, change) {
   const done = () => doc.toString({ lineWidth: 0, flowCollectionPadding: false });
 
   if (change.op === 'setFloor') {
-    // the plan editor replaces a floor's walls and objects wholesale
-    for (const key of ['wallList', 'objects']) {
+    // the plan editor replaces a floor's walls, objects and rooms wholesale
+    for (const key of ['wallList', 'objects', 'rooms']) {
       if (!Array.isArray(change[key])) continue;
       const node = doc.createNode(change[key]);
       for (const item of node.items) item.flow = true;

@@ -20,6 +20,7 @@ export function createPlanner({ house, say }) {
       <select class="floor" title="Floor"></select>
       <span class="tools">
         <button data-tool="select">Select</button>
+        <button data-tool="room" title="Rooms and ground areas: the floors themselves">Rooms</button>
         <button data-tool="wall">Wall</button>
         <button data-tool="door">Door</button>
         <button data-tool="window">Window</button>
@@ -41,6 +42,7 @@ export function createPlanner({ house, say }) {
   const props = $('.props');
   const HINTS = {
     select: 'Click to select · drag to move · drag a corner to resize (Shift keeps proportions) · drag the round handle to turn (Shift for 1° steps) · arrow keys nudge · R rotates · Del deletes · Ctrl/Cmd+C / V copy and paste · Ctrl/Cmd+D duplicates · Shift-click adds to the selection, Shift-drag draws a selection box · Ctrl/Cmd+Z undo, +Shift redo · scroll to zoom',
+    room: 'Click a room or ground area to select it · drag it to move · Del removes it · drag on empty space to draw a new one · sizes, name and floor colour are in the panel',
     wall: 'Drag to draw a wall · it snaps to the grid, to existing corners and to straight lines · Esc to stop',
     paint: 'Pick a colour in the panel, then click a wall — the side you click gets painted · Alt-click a wall to pick up its colour',
     furniture: 'Pick furniture in the sidebar · click a room first to drop it in the middle of that room · you can still drag, resize and turn things on the plan',
@@ -54,6 +56,7 @@ export function createPlanner({ house, say }) {
   let view = { x: 0, y: 0, w: 10, h: 10 };
   let drag = null;
   let draft = null; // wall being drawn
+  let roomDraft = null; // room being drawn: { a, b }
   let paintColor = (() => { try { return localStorage.getItem('twin.paint') || '#c9d8c5'; } catch { return '#c9d8c5'; } })();
   let besideOn = false;
   let multi = []; // when 2+ things are picked: [{ kind: 'object' | 'wall', i }]
@@ -78,6 +81,7 @@ export function createPlanner({ house, say }) {
   // ── data helpers
   const walls = () => (floor.wallList ??= []);
   const objects = () => (floor.objects ??= []);
+  const rooms = () => (floor.rooms ??= []);
   const xz = (o) => (o.at.length === 3 ? [o.at[0], o.at[2]] : [o.at[0], o.at[1]]);
   const setXZ = (o, x, z) => (o.at = o.at.length === 3 ? [round(x), o.at[1], round(z)] : [round(x), round(z)]);
   const wallLen = (w) => Math.hypot(w.to[0] - w.from[0], w.to[1] - w.from[1]);
@@ -112,7 +116,7 @@ export function createPlanner({ house, say }) {
 
   // ── saving and undo
   const redo = [];
-  const snapshot = () => ({ floor: floor.id, wallList: clone(walls()), objects: clone(objects()) });
+  const snapshot = () => ({ floor: floor.id, wallList: clone(walls()), objects: clone(objects()), rooms: clone(rooms()) });
   function pushUndo() {
     undo.push(snapshot());
     redo.length = 0; // a new change ends the redo history
@@ -121,7 +125,7 @@ export function createPlanner({ house, say }) {
   async function save() {
     dirty = true;
     try {
-      await saveEdit({ op: 'setFloor', floor: floor.id, wallList: walls(), objects: objects() });
+      await saveEdit({ op: 'setFloor', floor: floor.id, wallList: walls(), objects: objects(), rooms: rooms() });
       refresh3d();
     } catch (err) {
       say(`Not saved: ${err.message}`);
@@ -141,7 +145,7 @@ export function createPlanner({ house, say }) {
     clearTimeout(reloadTimer);
     reloadTimer = setTimeout(() => {
       $('iframe').contentWindow?.postMessage(
-        { type: 'twin-sync', floor: floor.id, wallList: clone(walls()), objects: clone(objects()) },
+        { type: 'twin-sync', floor: floor.id, wallList: clone(walls()), objects: clone(objects()), rooms: clone(rooms()) },
         location.origin
       );
     }, 60);
@@ -174,9 +178,10 @@ export function createPlanner({ house, say }) {
     const last = from.pop();
     if (!last) return;
     const f = house.floors.find((x) => x.id === last.floor);
-    to.push({ floor: f.id, wallList: clone(f.wallList ?? []), objects: clone(f.objects ?? []) });
+    to.push({ floor: f.id, wallList: clone(f.wallList ?? []), objects: clone(f.objects ?? []), rooms: clone(f.rooms ?? []) });
     f.wallList = last.wallList;
     f.objects = last.objects;
+    if (last.rooms) f.rooms = last.rooms;
     if (f !== floor) return openFloor(f.id).then(save);
     sel = null;
     multi = [];
@@ -222,12 +227,12 @@ export function createPlanner({ house, say }) {
       <path d="M1 0H0V1" fill="none" stroke="rgba(110,150,255,0.16)" stroke-width="${s}"/></pattern></defs>
       <rect x="${view.x - 200}" y="${view.y - 200}" width="${view.w + 400}" height="${view.h + 400}" fill="url(#plan-grid)"/>`;
 
-    for (const r of f.rooms ?? []) {
+    (f.rooms ?? []).forEach((r, i) => {
       const [x, z, w, d] = r.rect;
-      h += `<rect class="room${r.outdoor ? ' outdoor' : ''}${r === targetRoom && tool === 'furniture' ? ' target' : ''}" x="${x}" y="${z}" width="${w}" height="${d}"/>
+      h += `<rect class="room${r.outdoor ? ' outdoor' : ''}${r === targetRoom && tool === 'furniture' ? ' target' : ''}${sel?.kind === 'room' && sel.i === i ? ' sel' : ''}" data-kind="room" data-i="${i}" x="${x}" y="${z}" width="${w}" height="${d}"/>
         <text class="room-name" x="${x + w / 2}" y="${z + d / 2}" font-size="${13 * s}">${esc(r.name ?? r.id)}
           <tspan x="${x + w / 2}" dy="${15 * s}" class="area" font-size="${11 * s}">${(w * d).toFixed(1)} m²</tspan></text>`;
-    }
+    });
 
     objects().forEach((o, i) => {
       const b = boxOf(o), [x, z] = xz(o);
@@ -298,6 +303,11 @@ export function createPlanner({ house, say }) {
 
     if (draft) h += `<line class="wall draft" x1="${draft.a[0]}" y1="${draft.a[1]}" x2="${draft.b[0]}" y2="${draft.b[1]}" stroke-width="${Math.max(0.1, 4 * s)}"/>
       <text class="len" x="${(draft.a[0] + draft.b[0]) / 2}" y="${(draft.a[1] + draft.b[1]) / 2 - 8 * s}" font-size="${11 * s}">${Math.hypot(draft.b[0] - draft.a[0], draft.b[1] - draft.a[1]).toFixed(2)} m</text>`;
+    if (roomDraft) {
+      const { a, b } = roomDraft;
+      h += `<rect class="room draft" x="${Math.min(a[0], b[0])}" y="${Math.min(a[1], b[1])}" width="${Math.abs(a[0] - b[0])}" height="${Math.abs(a[1] - b[1])}"/>
+        <text class="len" x="${(a[0] + b[0]) / 2}" y="${(a[1] + b[1]) / 2}" font-size="${11 * s}">${metres(Math.abs(a[0] - b[0]))} × ${metres(Math.abs(a[1] - b[1]))}</text>`;
+    }
     if (drag?.kind === 'marquee') {
       const [a, b] = [drag.a, drag.b];
       h += `<rect class="marquee" x="${Math.min(a[0], b[0])}" y="${Math.min(a[1], b[1])}" width="${Math.abs(a[0] - b[0])}" height="${Math.abs(a[1] - b[1])}"/>`;
@@ -340,8 +350,19 @@ export function createPlanner({ house, say }) {
       return;
     }
     if (!sel) {
-      props.innerHTML = `<h3>${esc(floor.name)}</h3><p>${walls().length} walls · ${objects().length} objects</p>
-        <p>Select something to see and change its exact measurements.</p>`;
+      props.innerHTML = `<h3>${esc(floor.name)}</h3><p>${rooms().length} rooms · ${walls().length} walls · ${objects().length} objects</p>
+        <p>${tool === 'room' ? 'Click a room or ground area to change or remove it, or drag on empty space to draw a new one.' : 'Select something to see and change its exact measurements.'}</p>`;
+      return;
+    }
+    if (sel.kind === 'room') {
+      const r = rooms()[sel.i], [x, z, w, d] = r.rect;
+      props.innerHTML = `<h3>${esc(r.name ?? r.id)}</h3><p>${(w * d).toFixed(1)} m² · ${r.outdoor ? 'outside ground' : 'room'}</p>
+        ${field('Name', 'rname', esc(r.name ?? ''), 'type="text"')}
+        <div class="pair">${field('X (m)', 'r0', x)}${field('Z (m)', 'r1', z)}</div>
+        <div class="pair">${field('Width (m)', 'r2', w, 'type="number" step="0.05" min="0.1"')}${field('Depth (m)', 'r3', d, 'type="number" step="0.05" min="0.1"')}</div>
+        ${field('Floor colour', 'rfloor', esc(/^#[0-9a-f]{6}$/i.test(r.floor ?? '') ? r.floor : '#d9cdb8'), 'type="color"')}
+        <label class="check"><input data-prop="routdoor" type="checkbox" ${r.outdoor ? 'checked' : ''}/> Outside ground (garden, terrace)</label>
+        <button class="delete">Delete</button>`;
       return;
     }
     if (sel.kind === 'object') {
@@ -391,6 +412,14 @@ export function createPlanner({ house, say }) {
     const num = raw === '' ? undefined : Number(raw);
     change(() => {
       const set = (obj, key, value) => (value === undefined || value === false ? delete obj[key] : (obj[key] = value));
+      if (sel.kind === 'room') {
+        const r = rooms()[sel.i];
+        if (prop === 'rname') set(r, 'name', raw.trim() || undefined);
+        else if (prop === 'rfloor') r.floor = raw;
+        else if (prop === 'routdoor') set(r, 'outdoor', raw);
+        else if (/^r[0-3]$/.test(prop) && num !== undefined && !Number.isNaN(num)) r.rect[+prop[1]] = +prop[1] < 2 ? round(num) : Math.max(0.1, round(num));
+        return;
+      }
       if (sel.kind === 'object') {
         const o = objects()[sel.i], [x, z] = xz(o);
         if (prop === 'x') setXZ(o, num ?? x, z);
@@ -446,6 +475,13 @@ export function createPlanner({ house, say }) {
 
   // ── actions
   function remove() {
+    if (sel?.kind === 'room') {
+      return change(() => {
+        rooms().splice(sel.i, 1);
+        targetRoom = null;
+        sel = null;
+      });
+    }
     const items = picked();
     if (items.length) {
       change(() => {
@@ -582,6 +618,15 @@ export function createPlanner({ house, say }) {
       if (kind === 'wall' || kind === 'opening') addOpening(i, p);
       else say('Click on a wall');
       return;
+    } else if (tool === 'room') {
+      if (kind === 'room') {
+        sel = { kind, i };
+        drag = { kind, p, orig: [...rooms()[i].rect] };
+      } else {
+        sel = null;
+        const a = [snap(p[0]), snap(p[1])];
+        roomDraft = { a, b: a };
+      }
     } else if (!t) {
       sel = null;
       targetRoom = (floor.rooms ?? []).find((r) => !r.outdoor && p[0] >= r.rect[0] && p[0] <= r.rect[0] + r.rect[2] && p[1] >= r.rect[1] && p[1] <= r.rect[1] + r.rect[3])
@@ -613,6 +658,10 @@ export function createPlanner({ house, say }) {
     const p = point(e);
     if (draft) {
       draft.b = straighten(snapPoint(p), draft.a);
+      return render();
+    }
+    if (roomDraft) {
+      roomDraft.b = [snap(p[0]), snap(p[1])];
       return render();
     }
     if (!drag) return;
@@ -667,6 +716,9 @@ export function createPlanner({ house, say }) {
           w.to = [round(o.to[0] + dx), round(o.to[1] + dz)];
         }
       });
+    } else if (drag.kind === 'room') {
+      const r = rooms()[sel.i];
+      r.rect = [round(drag.orig[0] + snap(p[0] - drag.p[0])), round(drag.orig[1] + snap(p[1] - drag.p[1])), drag.orig[2], drag.orig[3]];
     } else if (drag.kind === 'object') {
       setXZ(objects()[sel.i], snap(drag.orig[0] + p[0] - drag.p[0]), snap(drag.orig[1] + p[1] - drag.p[1]));
     } else if (drag.kind === 'wall') {
@@ -685,6 +737,20 @@ export function createPlanner({ house, say }) {
   });
 
   svg.addEventListener('pointerup', () => {
+    if (roomDraft) {
+      const { a, b } = roomDraft;
+      roomDraft = null;
+      const rect = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), round(Math.abs(a[0] - b[0])), round(Math.abs(a[1] - b[1]))];
+      if (rect[2] < 0.3 || rect[3] < 0.3) return render();
+      return change(() => {
+        let n = 1;
+        while (house.floors.some((f) => (f.rooms ?? []).some((r) => r.id === `room_${n}`))) n++;
+        // on a floor that is all garden so far, a new area is garden too
+        const outside = rooms().length > 0 && rooms().every((r) => r.outdoor);
+        rooms().push({ id: `room_${n}`, name: outside ? 'Garden' : 'Room', rect, floor: outside ? '#7fae5d' : '#d9cdb8', ...(outside ? { outdoor: true } : {}) });
+        sel = { kind: 'room', i: rooms().length - 1 };
+      });
+    }
     if (draft) {
       const { a, b } = draft;
       draft = null;
