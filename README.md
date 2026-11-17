@@ -20,16 +20,39 @@ Built with [Three.js](https://threejs.org/) and [Vite](https://vite.dev/). No Ho
 
 ## Getting started
 
-Requires a current Node.js (Vite 8 needs 20.19 or newer).
+### 1. Install the tools
+
+You need [Node.js](https://nodejs.org/) 20.19 or newer (it includes `npm`) and [Git](https://git-scm.com/). To check, run `node -v` and `git -v` in a terminal.
+
+### 2. Get the code
+
+```sh
+git clone https://github.com/yasingunaydiin/house-twin.git
+cd house-twin
+```
+
+### 3. Install and start it
 
 ```sh
 npm install
 npm run dev
 ```
 
-Open the URL Vite prints. On first start the app copies the empty templates from `templates/` into `data/`. Your house is saved there and is not part of the repo. Set `HOUSE_DATA_DIR` to keep it somewhere else.
+`npm install` downloads the dependencies and only needs to run once. `npm run dev` starts the app and prints a local address, usually `http://localhost:5173`. Open it in your browser.
 
-To build a production bundle, run `npm run build`. `npm run preview` serves it.
+### 4. Try it
+
+The app starts in **Simulated** mode, so it works without Home Assistant. Use the time-of-day slider and the weather picker in the top bar, click **Plan** to draw walls and place furniture, or click **Edit** to move things around in 3D.
+
+On first start the app copies the empty templates from `templates/` into `data/`. Your house is saved there and is not part of the repo. Set `HOUSE_DATA_DIR` to keep it somewhere else.
+
+### 5. Connect your Home Assistant (optional)
+
+To see your real devices, follow [Connecting Home Assistant](#connecting-home-assistant) below, then restart `npm run dev`.
+
+### Building for production
+
+`npm run build` makes a production bundle in `dist/`, and `npm run preview` serves it locally.
 
 ## Deploying as a static site
 
