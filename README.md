@@ -4,6 +4,18 @@ An interactive 3D dollhouse of your home that shows the live state of your Home 
 
 Built with [Three.js](https://threejs.org/) and [Vite](https://vite.dev/). No Home Assistant? A built-in simulation fakes the devices and the time of day.
 
+## Screenshots
+
+![The house from outside, with its roof and solar panels](docs/screenshots/outside.png)
+
+![Select a floor and the roof lifts away, so you can see into every room](docs/screenshots/house.png)
+
+![The living room, close up](docs/screenshots/living-room.png)
+
+![A heater linked to a climate entity shows its temperature](docs/screenshots/heater.png)
+
+![The climate dialog for the heater](docs/screenshots/climate-dialog.png)
+
 ## Features
 
 - **Isometric 3D view** of every floor. Select a floor to lift the ones above it away and cut the walls open on the side facing you.
