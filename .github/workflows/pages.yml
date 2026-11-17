@@ -22,7 +22,7 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          VITE_BASE: /house-twin/
+          VITE_BASE: /ha-dollhouse/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

@@ -1,4 +1,4 @@
-# House Twin
+# HA Dollhouse
 
 An interactive 3D dollhouse of your home that shows the live state of your Home Assistant devices. Lights glow, climate and cameras open their own dialogs, and the sun and moon follow the real sky. You build the house yourself in the browser: draw walls, add doors and windows, and place furniture from a catalog.
 
@@ -27,8 +27,8 @@ You need [Node.js](https://nodejs.org/) 20.19 or newer (it includes `npm`) and [
 ### 2. Get the code
 
 ```sh
-git clone https://github.com/yasingunaydiin/house-twin.git
-cd house-twin
+git clone https://github.com/yasingunaydiin/ha-dollhouse.git
+cd ha-dollhouse
 ```
 
 ### 3. Install and start it
@@ -59,7 +59,7 @@ To see your real devices, follow [Connecting Home Assistant](#connecting-home-as
 A workflow in [.github/workflows/](.github/workflows/) builds the app and publishes it to GitHub Pages on every push to `main`. It sets `VITE_BASE` to the repository path, so assets load from the right place. Set the same variable if you host it under a sub-path elsewhere:
 
 ```sh
-VITE_BASE=/house-twin/ npm run build
+VITE_BASE=/ha-dollhouse/ npm run build
 ```
 
 With no server there is no Home Assistant gateway and no `data/` folder, so the site runs in simulated mode. Your edits are saved in the browser's local storage. Use Export to back them up or move them to another device.
