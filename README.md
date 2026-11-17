@@ -4,18 +4,6 @@ An interactive 3D dollhouse of your home that shows the live state of your Home 
 
 Built with [Three.js](https://threejs.org/) and [Vite](https://vite.dev/). No Home Assistant? A built-in simulation fakes the devices and the time of day.
 
-## Screenshots
-
-![The house from outside, with its roof and solar panels](docs/screenshots/outside.png)
-
-![Select a floor and the roof lifts away, so you can see into every room](docs/screenshots/house.png)
-
-![The living room, close up](docs/screenshots/living-room.png)
-
-![A heater linked to a climate entity shows its temperature](docs/screenshots/heater.png)
-
-![The climate dialog for the heater](docs/screenshots/climate-dialog.png)
-
 ## Features
 
 - **Isometric 3D view** of every floor. Select a floor to lift the ones above it away and cut the walls open on the side facing you.
@@ -131,3 +119,22 @@ model: models/sofa.glb
 ```
 
 Built-in model names are registered in `src/models/`.
+
+## Screenshots
+
+![A slideshow of the app: the house from outside, the cutaway rooms, the living room, the heater, its climate dialog and the floor-plan editor](docs/screenshots/preview.gif)
+
+<table>
+  <tr>
+    <td><a href="docs/screenshots/outside.png"><img src="docs/screenshots/outside.png" alt="The house from outside, with its roof and solar panels"></a><br><sub>The house from outside, with its roof and solar panels</sub></td>
+    <td><a href="docs/screenshots/house.png"><img src="docs/screenshots/house.png" alt="Select a floor and the roof lifts away"></a><br><sub>Select a floor and the roof lifts away, so you can see into every room</sub></td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/living-room.png"><img src="docs/screenshots/living-room.png" alt="The living room, close up"></a><br><sub>The living room, close up</sub></td>
+    <td><a href="docs/screenshots/heater.png"><img src="docs/screenshots/heater.png" alt="A heater linked to a climate entity shows its temperature"></a><br><sub>A heater linked to a climate entity shows its temperature</sub></td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/climate-dialog.png"><img src="docs/screenshots/climate-dialog.png" alt="The climate dialog for the heater"></a><br><sub>The climate dialog for the heater</sub></td>
+    <td><a href="docs/screenshots/planner.png"><img src="docs/screenshots/planner.png" alt="The floor-plan editor"></a><br><sub>The floor-plan editor with the furniture catalog and the 3D pane beside it</sub></td>
+  </tr>
+</table>
