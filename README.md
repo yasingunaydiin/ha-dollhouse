@@ -9,12 +9,14 @@ Built with [Three.js](https://threejs.org/) and [Vite](https://vite.dev/). No Ho
 - **Isometric 3D view** of every floor. Select a floor to lift the ones above it away and cut the walls open on the side facing you.
 - **Live mode** mirrors your real Home Assistant entities. Lights follow their on/off state and brightness, and the sun and moon follow `sun.sun`.
 - **Real-time weather** over the plot: rain, snow, cloud cover that dims the sun, wind and lightning. It comes from a Home Assistant `weather.*` entity, or from [Open-Meteo](https://open-meteo.com/) for your coordinates (`location` in `house.yaml`, or Home Assistant's home zone). Simulated mode has a weather picker.
-- **Simulated mode** works without Home Assistant. It has a time-of-day slider, and entities that don't exist are faked.
-- **Floor-plan editor** (Plan) for rooms, walls, doors, windows and furniture, with multi-select, undo/redo and a 3D pane beside the plan.
-- **3D edit mode** (Edit): drag, rotate and remove objects directly in the scene.
-- **Furniture catalog** with a large set of built-in procedural models. You can also use your own `.glb` files.
+- **Simulated mode** works without Home Assistant. It has a time-of-day slider, and entities that don't exist are faked. The **Now** button makes the simulation follow the real time, sun and weather at your location.
+- **Floor-plan editor** (Plan) with tools for rooms and ground areas, walls, doors, windows, paint and furniture. It has multi-select, undo/redo and a live 3D pane beside the plan that updates as you draw.
+- **3D edit mode** (Edit): drag, rotate and remove objects directly in the scene. A panel lets you turn, raise (for example onto a desk) and resize an object, or reset it to its original size.
+- **Furniture catalog** with a large set of built-in procedural models: furniture, decor, tech, shelving, outdoor items and more. You can also use your own `.glb` files.
+- **Smart rendering.** Lamp lights are pooled, so a house with many lamps stays fast. Raised walls stay clear of doors and out of the camera's way.
 - **Control dialogs** for climate and cameras.
 - **Export / Import** the whole house (layout, furniture and entity links) as a single JSON file.
+- **Static hosting.** The app also runs as a plain static site (for example on GitHub Pages) with no server. Edits are kept in your browser, and Export / Import still work. See below.
 
 ## Getting started
 
@@ -28,6 +30,16 @@ npm run dev
 Open the URL Vite prints. On first start the app copies the empty templates from `templates/` into `data/`. Your house is saved there and is not part of the repo. Set `HOUSE_DATA_DIR` to keep it somewhere else.
 
 To build a production bundle, run `npm run build`. `npm run preview` serves it.
+
+## Deploying as a static site
+
+A workflow in [.github/workflows/](.github/workflows/) builds the app and publishes it to GitHub Pages on every push to `main`. It sets `VITE_BASE` to the repository path, so assets load from the right place. Set the same variable if you host it under a sub-path elsewhere:
+
+```sh
+VITE_BASE=/house-twin/ npm run build
+```
+
+With no server there is no Home Assistant gateway and no `data/` folder, so the site runs in simulated mode. Your edits are saved in the browser's local storage. Use Export to back them up or move them to another device.
 
 ## Connecting Home Assistant
 
