@@ -1341,16 +1341,89 @@ function led(color, x, y, z, r = 0.006) {
   return m;
 }
 
-// the dark TV bench with rounded ends, without a TV on it
-registerModel('tv_bench', ({ length = 1.9 } = {}) =>
-  group(
-    box(length - 0.4, 0.34, 0.4, WALNUT, 0, 0.1, 0, 0.02),
-    cyl(0.2, 0.2, 0.34, WALNUT, -(length / 2 - 0.2), 0.1, 0),
-    cyl(0.2, 0.2, 0.34, WALNUT, length / 2 - 0.2, 0.1, 0),
-    box(length - 0.7, 0.16, 0.02, '#2a1c13', 0, 0.2, 0.195),
-    ...legs(length - 0.5, 0.26, 0.1, WALNUT, 0.02)
-  )
-);
+// Walnut TV bench with rounded ends (170 x 39.5 x 38 cm): ribbed sliding doors on both
+// sides, a rattan drawer in the middle, six round legs. leftOpen / rightOpen slide a door
+// out to the end so the open shelf shows; closed, it covers the shelf.
+const BENCH_RIB = '#3d2819';
+function stadium(L, D, inset = 0) {
+  const r = D / 2 - inset, x = L / 2 - D / 2;
+  const sh = new THREE.Shape();
+  sh.moveTo(-x, -r);
+  sh.lineTo(x, -r);
+  sh.absarc(x, 0, r, -Math.PI / 2, Math.PI / 2, false);
+  sh.lineTo(-x, r);
+  sh.absarc(-x, 0, r, Math.PI / 2, (3 * Math.PI) / 2, false);
+  return sh;
+}
+function slab(L, D, h, color, y, inset = 0) {
+  const geo = new THREE.ExtrudeGeometry(stadium(L, D, inset), { depth: h, bevelEnabled: false, curveSegments: 20 });
+  geo.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(geo, mat(color));
+  m.position.y = y;
+  return m;
+}
+function rattanTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 128;
+  const x = c.getContext('2d');
+  x.fillStyle = '#d9c39a'; x.fillRect(0, 0, 256, 128);
+  x.fillStyle = '#4a3324';
+  for (let j = 0; j < 16; j++) for (let i = 0; i < 32; i++) { x.beginPath(); x.arc(4 + i * 8 + (j % 2) * 4, 4 + j * 8, 2, 0, 7); x.fill(); }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const knob = (x, y, z) => {
+  const k = new THREE.Mesh(new THREE.SphereGeometry(0.014, 14, 10), mat('#b48a3c', { metalness: 0.8, roughness: 0.35 }));
+  k.position.set(x, y, z);
+  return k;
+};
+registerModel('tv_bench', ({ length = 1.7, depth = 0.395, leftOpen = true, rightOpen = false } = {}) => {
+  const L = length, D = depth, LEG = 0.15, TOP = 0.38, SLAB = 0.02;
+  const bodyY = LEG + SLAB, bodyH = TOP - SLAB - bodyY, front = D / 2;
+  const g = group(
+    slab(L, D, SLAB, WALNUT, TOP - SLAB), // top
+    slab(L, D - 0.01, SLAB, WALNUT, LEG), // base plate
+    slab(L - 0.03, D - 0.03, bodyH, '#2a1b11', bodyY), // carcass
+  );
+  g.children.forEach((m) => (m.castShadow = true));
+  // six round legs
+  for (const x of [-0.72, 0, 0.72]) for (const z of [-0.12, 0.12]) g.add(cyl(0.025, 0.022, LEG, WALNUT, x * (L / 1.7), 0, z, 12));
+  // ribbed curved ends: thin vertical slats round each half circle
+  const r = D / 2 - 0.012, cx = L / 2 - D / 2;
+  for (const sx of [-1, 1]) for (let i = 1; i < 14; i++) {
+    const a = -Math.PI / 2 + (i / 14) * Math.PI;
+    const slat = box(0.012, bodyH - 0.01, 0.02, BENCH_RIB, sx * (cx + Math.cos(a) * r), bodyY + 0.005, Math.sin(a) * r);
+    slat.rotation.y = -sx * a;
+    g.add(slat);
+  }
+  // centre drawer: frame, rattan panel and a brass knob
+  const dz = front - 0.004;
+  g.add(box(0.5, bodyH - 0.01, 0.012, '#4a3324', 0, bodyY + 0.005, dz, 0.003));
+  const pane = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.1), new THREE.MeshStandardMaterial({ map: rattanTexture(), roughness: 0.8 }));
+  pane.position.set(0, bodyY + bodyH * 0.4, dz + 0.0065);
+  g.add(pane);
+  g.add(box(0.44, 0.012, 0.004, '#3a2617', 0, bodyY + bodyH - 0.045, dz + 0.006));
+  g.add(knob(0, bodyY + bodyH - 0.03, dz + 0.02));
+  // the two shelves (dark) with an arch on the inner side, and the sliding doors
+  const dw = 0.3, dh = bodyH - 0.012;
+  for (const [sx, open] of [[-1, leftOpen], [1, rightOpen]]) {
+    const sc = (L / 2 - 0.25) / 0.6; // keeps the proportions if the length is changed
+    const mid = sx * (0.25 + 0.15 * sc);
+    g.add(box(0.33 * sc, bodyH - 0.01, 0.006, '#1a110b', sx * (0.25 + 0.165 * sc), bodyY + 0.005, front - 0.02));
+    const arch = new THREE.Mesh(new THREE.CircleGeometry(bodyH / 2 - 0.006, 20, sx < 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI), mat(WALNUT));
+    arch.position.set(sx * (0.25 + 0.002), bodyY + bodyH / 2, front - 0.016);
+    arch.scale.x = 1.3;
+    g.add(arch);
+    const dx = open ? sx * (L / 2 - D / 2 - dw / 2 + 0.1) : mid;
+    const door = group(box(dw, dh, 0.012, BENCH_RIB, 0, 0, 0, 0.002));
+    for (let i = -17; i <= 17; i++) door.add(box(0.006, dh - 0.004, 0.003, '#4d3322', i * 0.0105, 0.002, 0.0075));
+    door.add(knob(-sx * 0.1, dh * 0.5, 0.02));
+    door.position.set(dx, bodyY + 0.006, front - 0.003);
+    g.add(door);
+  }
+  return g;
+});
 
 // Samsung CU7172 55": 1.23 m wide, thin bezel, two V-shaped feet near the ends
 registerModel('samsung_tv', ({ width = 1.231, height = 0.708 } = {}) => {
