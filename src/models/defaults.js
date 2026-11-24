@@ -597,6 +597,41 @@ registerModel('philips_heater', ({ scale: _s, radius = 0.105, height = 0.3 } = {
   return g;
 });
 
+// Folding wooden stool: a slatted top on two scissor frames. Real size about
+// 32 x 28 cm and 40 cm high; params: width, depth, height, wood (colour).
+registerModel('folding_stool', ({ width = 0.32, depth = 0.28, height = 0.4, wood = '#e2b887' } = {}) => {
+  const dark = '#d4a46d';
+  const g = group();
+  const slat = 0.014, slats = 5, gap = 0.007;
+  const slatD = (depth - gap * (slats - 1)) / slats;
+  // slatted top, the slats running across the width
+  for (let k = 0; k < slats; k++) {
+    g.add(box(width, slat, slatD, wood, 0, height - slat, -depth / 2 + slatD / 2 + k * (slatD + gap), 0.003));
+  }
+  // two cleats under the slats hold them together
+  for (const sx of [-1, 1]) g.add(box(0.022, 0.014, depth - 0.02, dark, sx * (width / 2 - 0.045), height - slat - 0.014, 0, 0.002));
+  // scissor frames at both ends: two legs that cross, pinned together with a dowel
+  const top = height - slat - 0.014, footZ = depth / 2 - 0.01, topZ = depth / 2 - 0.045;
+  const leg = (x, z0, z1) => {
+    const dy = top, dz = z1 - z0, len = Math.hypot(dy, dz);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.022, len, 0.03), mat(wood));
+    m.position.set(x, top / 2, (z0 + z1) / 2);
+    m.rotation.x = Math.atan2(dz, dy); // along the line from the top end to the foot
+    return m;
+  };
+  for (const sx of [-1, 1]) {
+    const x = sx * (width / 2 - 0.045);
+    g.add(leg(x - sx * 0.0125, -topZ, footZ), leg(x + sx * 0.0125, topZ, -footZ));
+    const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.06, 10), mat(dark));
+    pin.rotation.z = Math.PI / 2;
+    pin.position.set(x, top / 2, 0);
+    g.add(pin);
+  }
+  // rails between the feet at the bottom, front and back
+  for (const sz of [-1, 1]) g.add(box(width - 0.07, 0.02, 0.02, dark, 0, 0.012, sz * footZ, 0.003));
+  return g;
+});
+
 // gologi glass convector heater, 2000 W: a white glass panel on two angled feet
 // with a dot-matrix temperature display top right. Stands on the floor, or hangs
 // on a wall with the "Placement height" field. params: width, height (panel).

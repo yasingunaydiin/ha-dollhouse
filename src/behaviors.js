@@ -16,9 +16,28 @@ function glyph(c, name, on, glow) {
     c.beginPath(); c.arc(0, -6, 13, Math.PI * 0.78, Math.PI * 0.22); c.lineTo(6, 13); c.lineTo(-6, 13); c.closePath(); c.stroke();
     c.beginPath(); c.moveTo(-6, 19); c.lineTo(6, 19); c.stroke();
     if (on) { c.beginPath(); c.arc(0, -6, 6, 0, Math.PI * 2); c.globalAlpha = 0.5; c.fill(); }
-  } else if (name === 'flame') {
-    c.beginPath(); c.moveTo(0, -17); c.bezierCurveTo(12, -4, 15, 3, 15, 8); c.bezierCurveTo(15, 15, 8, 19, 0, 19); c.bezierCurveTo(-8, 19, -15, 15, -15, 8); c.bezierCurveTo(-15, 2, -8, -3, 0, -17); c.closePath(); c.stroke();
-    c.beginPath(); c.moveTo(0, 5); c.bezierCurveTo(5, 9, 5, 14, 0, 15); c.bezierCurveTo(-5, 14, -5, 9, 0, 5); c.fill();
+  } else if (name === 'washer') {
+    c.beginPath(); c.roundRect(-15, -18, 30, 36, 4); c.stroke();
+    c.beginPath(); c.moveTo(-15, -9); c.lineTo(15, -9); c.stroke();
+    c.beginPath(); c.arc(-8, -13.5, 1.6, 0, Math.PI * 2); c.arc(-2, -13.5, 1.6, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(0, 5, 9, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(0, 5, 5, Math.PI * 0.1, Math.PI * 0.9); c.stroke();
+  } else if (name === 'coffee') {
+    c.beginPath(); c.moveTo(-13, -3); c.lineTo(9, -3); c.lineTo(9, 5); c.quadraticCurveTo(9, 14, 0, 14); c.quadraticCurveTo(-13, 14, -13, 5); c.closePath(); c.stroke();
+    c.beginPath(); c.moveTo(9, 0); c.quadraticCurveTo(18, 0, 17, 6); c.quadraticCurveTo(16, 10, 8, 10); c.stroke();
+    c.lineWidth = 3;
+    c.beginPath(); c.moveTo(-8, -8); c.quadraticCurveTo(-5, -12, -8, -16); c.moveTo(-1, -8); c.quadraticCurveTo(2, -12, -1, -16); c.stroke();
+  } else if (name === 'radiator') {
+    c.beginPath(); c.roundRect(-17, -14, 34, 28, 4); c.stroke();
+    c.lineWidth = 3;
+    c.beginPath(); for (const x of [-8.5, 0, 8.5]) { c.moveTo(x, -8); c.lineTo(x, 8); } c.stroke();
+  } else if (name === 'fan') {
+    c.beginPath(); c.arc(0, 0, 3, 0, Math.PI * 2); c.fill();
+    for (let k = 0; k < 3; k++) {
+      c.save(); c.rotate((k * Math.PI * 2) / 3);
+      c.beginPath(); c.ellipse(0, -9.5, 5, 8.5, 0, 0, Math.PI * 2); c.stroke();
+      c.restore();
+    }
   } else if (name === 'camera') {
     c.beginPath(); c.roundRect(-18, -11, 25, 22, 4); c.stroke();
     c.beginPath(); c.moveTo(9, -3); c.lineTo(18, -9); c.lineTo(18, 9); c.lineTo(9, 3); c.closePath(); c.stroke();
@@ -511,6 +530,7 @@ const ICONS = {
   light: { name: 'bulb', glow: '#ffc98a', active: (st) => st === 'on' },
   media_player: { name: 'monitor', glow: '#8fc4ff', active: (st) => ['on', 'playing', 'paused', 'idle', 'buffering'].includes(st) },
   camera: { name: 'camera', glow: '#8fc4ff', active: (st) => st !== 'off' },
+  fan: { name: 'fan', glow: '#8fc4ff', active: (st) => st === 'on' },
   switch: { name: 'plug', glow: '#ffc98a', active: (st) => st === 'on' },
   input_boolean: { name: 'plug', glow: '#ffc98a', active: (st) => st === 'on' },
 };
@@ -523,8 +543,11 @@ const DEVICE_ICON = [
   [/(^|_)(lamp|light|pendant|globe|chandelier|led)(_|$)/, 'bulb'],
   [/(^|_)(tv|monitor|speaker|laptop)(_|$)|^(samsung_c|msi_|nintendo|macbook)/, 'monitor'],
   [/(^|_)(camera|doorbell)(_|$)/, 'camera'],
-  [/(^|_)heater(_|$)/, 'flame'],
-  [/(^|_)(fan|printer|server|coffee_machine|fridge|freezer|dishwasher|washing_machine|dryer|oven|microwave|kettle|vacuum|router|charger|inverter|purifier|humidifier)(_|$)|samsung_xpress/, 'plug'],
+  [/(^|_)(heater|radiator)(_|$)/, 'radiator'],
+  [/(^|_)fan(_|$)/, 'fan'],
+  [/(^|_)coffee(_|$)/, 'coffee'],
+  [/(^|_)(washing_machine|washer|dryer)(_|$)/, 'washer'],
+  [/(^|_)(printer|server|fridge|freezer|dishwasher|oven|microwave|kettle|vacuum|router|charger|inverter|purifier|humidifier)(_|$)|samsung_xpress/, 'plug'],
 ];
 // furniture that merely holds a device (a TV bench) is not one
 const HOLDS_DEVICES = /(^|_)(bench|stand|cabinet|shelf|unit|table)(_|$)/;
@@ -536,7 +559,7 @@ function deviceIcon(entry, entityId) {
   if (kind === 'light') return 'bulb';
   if (kind === 'media_player') return 'monitor';
   if (kind === 'camera') return 'camera';
-  if (kind === 'climate') return 'flame';
+  if (kind === 'climate') return 'radiator';
   const found = DEVICE_ICON.find(([re]) => re.test(model));
   if (!found || (HOLDS_DEVICES.test(model) && found[1] !== 'bulb')) return null;
   return found[1];
