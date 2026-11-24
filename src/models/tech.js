@@ -18,7 +18,7 @@ function cyl(r, h, color, x = 0, y = 0, z = 0, extra = {}) {
 }
 const group = (...c) => { const g = new THREE.Group(); if (c.length) g.add(...c); return g; };
 
-export const TECH_MODELS = ['nintendo_switch', 'logitech_mx_keys_mini', 'logitech_mx_master_mouse', 'macbook_air_space_black', 'macbook_air_space_gray', 'samsung_xpress_printer'];
+export const TECH_MODELS = ['nintendo_switch', 'logitech_mx_keys_mini', 'logitech_mx_master_mouse', 'macbook_air_space_black', 'macbook_air_space_gray', 'samsung_xpress_printer', 'xbox_one_s'];
 
 // Nintendo Switch, 239 x 102 x 14 with neon Joy-Cons. docked: stands upright in its dock.
 registerModel('nintendo_switch', ({ docked = false } = {}) => {
@@ -147,5 +147,43 @@ registerModel('samsung_xpress_printer', ({ body = '#d8dadd', top = '#3b3533' } =
 
   // right side: cooling vents
   for (let i = 0; i < 7; i++) g.add(box(0.001, 0.003, 0.05, '#aeb1b5', W / 2, 0.04 + i * 0.008, -0.035));
+  return g;
+});
+
+// Xbox One S, 295 x 229 x 63 mm: white console lying flat, smooth left half and a
+// perforated right half, disc slot and eject button on the front, black foot with a USB port.
+registerModel('xbox_one_s', ({ color = '#f3f4f2' } = {}) => {
+  const W = 0.295, D = 0.229, H = 0.063, FOOT = 0.012;
+  const g = group(box(W, H - FOOT, D, color, 0, FOOT, 0, 0.006));
+  g.add(box(W - 0.012, FOOT, D - 0.012, '#141416', 0, 0, 0, 0.003)); // black foot
+  // perforated right half of the top: a grid of tiny dark dots
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 512;
+  const x = c.getContext('2d');
+  x.fillStyle = color; x.fillRect(0, 0, 256, 512);
+  x.fillStyle = '#7d807d';
+  for (let j = 0; j < 64; j++) for (let i = 0; i < 32; i++) { x.beginPath(); x.arc(4 + i * 8 + (j % 2) * 4, 4 + j * 8, 2.2, 0, 7); x.fill(); }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const top = new THREE.Mesh(new THREE.PlaneGeometry(W / 2 - 0.004, D - 0.008), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }));
+  top.rotation.x = -Math.PI / 2;
+  top.position.set(W / 4, H + 0.001, 0);
+  g.add(top);
+  const front = D / 2 + 0.0004, mid = FOOT + (H - FOOT) / 2;
+  g.add(box(W * 0.43, 0.004, 0.002, '#0c0c0e', -W * 0.2, mid - 0.002, front - 0.0008)); // disc slot
+  const eject = cyl(0.0042, 0.002, '#e6e7e5', 0.005, 0, front - 0.001);
+  eject.rotation.x = Math.PI / 2; eject.position.y = mid;
+  g.add(eject);
+  // power button with the Xbox sphere, right of the front
+  const power = cyl(0.0095, 0.003, '#f7f8f6', W / 2 - 0.028, 0, front - 0.001, { roughness: 0.3 });
+  power.rotation.x = Math.PI / 2; power.position.y = mid + 0.0005;
+  g.add(power);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.0062, 0.0007, 8, 24), mat('#111214'));
+  ring.position.set(W / 2 - 0.028, mid + 0.0005, front + 0.0006);
+  g.add(ring);
+  // USB port and the two small buttons on the black foot
+  g.add(box(0.012, 0.0055, 0.002, '#3a3b3f', -W / 2 + 0.022, FOOT / 2 - 0.0028, D / 2 - 0.006 + 0.0004));
+  g.add(box(0.008, 0.005, 0.002, '#26272a', W / 2 - 0.045, FOOT / 2 - 0.0025, D / 2 - 0.006 + 0.0004, 0.002));
+  g.add(box(0.018, 0.006, 0.002, '#1d1e21', W / 2 - 0.03, FOOT / 2 - 0.003, D / 2 - 0.006 + 0.0004, 0.003));
   return g;
 });

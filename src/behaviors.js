@@ -550,7 +550,7 @@ const DEVICE_ICON = [
   [/(^|_)fan(_|$)/, 'fan'],
   [/(^|_)coffee(_|$)/, 'coffee'],
   [/(^|_)(washing_machine|washer|dryer)(_|$)/, 'washer'],
-  [/(^|_)(printer|server|fridge|freezer|dishwasher|oven|microwave|kettle|vacuum|router|charger|inverter|purifier|humidifier)(_|$)|samsung_xpress/, 'plug'],
+  [/(^|_)(printer|server|fridge|freezer|dishwasher|oven|microwave|kettle|vacuum|router|charger|inverter|purifier|humidifier|xbox|playstation)(_|$)|samsung_xpress|xbox_one/, 'plug'],
 ];
 // furniture that merely holds a device (a TV bench) is not one
 const HOLDS_DEVICES = /(^|_)(bench|stand|cabinet|shelf|unit|table)(_|$)/;
