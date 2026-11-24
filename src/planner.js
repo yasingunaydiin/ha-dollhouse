@@ -4,7 +4,9 @@
 import * as THREE from 'three';
 import { createModel } from './models/registry.js';
 import { createCatalog } from './catalog.js';
-import { saveEdit } from './house-file.js';
+import { saveEdit, saveLink } from './house-file.js';
+import { POWER_MODELS } from './models/power.js';
+import { hasBubbleByDefault } from './behaviors.js';
 
 const GRID = 0.05; // snap, metres
 const round = (n) => Math.round(n * 100) / 100;
@@ -13,7 +15,7 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const DEFAULTS = { door: { type: 'door', width: 0.9 }, window: { type: 'window', width: 1.2, sill: 0.9 } };
 
-export function createPlanner({ house, say }) {
+export function createPlanner({ house, say, links = {}, entities = () => [] }) {
   const el = document.getElementById('planner');
   el.innerHTML = `
     <div class="bar">
@@ -373,6 +375,12 @@ export function createPlanner({ house, say }) {
         ${field('Placement height (m above floor)', 'y', o.at.length === 3 ? o.at[1] : 0, 'type="number" step="0.05" min="0"')}
         <div class="pair">${field('Width (m)', 'w', size(b.x1 - b.x0), 'type="number" step="0.05" min="0.05"')}${field('Depth (m)', 'd', size(b.z1 - b.z0), 'type="number" step="0.05" min="0.05"')}</div>
         ${field('Height (m)', 'h', size(b.h), 'type="number" step="0.05" min="0.05"')}
+        <label><small>Home Assistant entity</small><input data-prop="entity" type="text" list="ha-entities" placeholder="light.living_room" value="${esc(links[o.id] ?? '')}"/></label>
+        <datalist id="ha-entities">${entities().map((id) => `<option value="${esc(id)}"></option>`).join('')}</datalist>
+        <label class="check"><input data-prop="bubble" type="checkbox" ${(o.bubble ?? hasBubbleByDefault(o, links[o.id])) ? 'checked' : ''}/> Show icon bubble</label>
+        <label><small>Plugged into</small><select data-prop="plug"><option value="">(nothing)</option>${
+          house.floors.flatMap((f) => f.objects ?? []).filter((q) => POWER_MODELS.includes(q.model) && q.id !== o.id)
+            .map((q) => `<option value="${esc(q.id)}"${q.id === o.plug ? ' selected' : ''}>${esc(q.id)}</option>`).join('')}</select></label>
         ${o.stretch ? '<button class="reset-size">Original size</button>' : ''}
         <button class="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button>
         <button class="delete">Delete</button>`;
@@ -405,11 +413,35 @@ export function createPlanner({ house, say }) {
     }
   }
 
+  // an entity on an object goes in links.yaml; the object also gets the behaviour of its domain
+  const KIND_OF = { light: 'light', media_player: 'media_player', climate: 'climate', camera: 'camera' };
+  async function linkEntity(o, entity) {
+    try {
+      await saveLink(o.id, entity || null);
+    } catch (err) {
+      return say(err.message);
+    }
+    if (entity) links[o.id] = entity;
+    else delete links[o.id];
+    dirty = true;
+    const kind = KIND_OF[entity.split('.')[0]];
+    if (kind && !o.kind) change(() => { o.kind = kind; });
+    say(entity ? `${o.id} is now ${entity}` : `${o.id} is no longer linked`);
+  }
+
   props.addEventListener('change', (e) => {
     const prop = e.target.dataset.prop;
     if (!prop || !sel) return;
     const raw = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     const num = raw === '' ? undefined : Number(raw);
+    if (prop === 'bubble' && sel.kind === 'object') {
+      return change(() => {
+        const o = objects()[sel.i];
+        if (raw === hasBubbleByDefault(o, links[o.id])) delete o.bubble; // back to the default
+        else o.bubble = raw;
+      });
+    }
+    if (prop === 'entity' && sel.kind === 'object') return linkEntity(objects()[sel.i], raw.trim());
     change(() => {
       const set = (obj, key, value) => (value === undefined || value === false ? delete obj[key] : (obj[key] = value));
       if (sel.kind === 'room') {
@@ -425,6 +457,7 @@ export function createPlanner({ house, say }) {
         if (prop === 'x') setXZ(o, num ?? x, z);
         if (prop === 'z') setXZ(o, x, num ?? z);
         if (prop === 'rot') set(o, 'rot', num || undefined);
+        if (prop === 'plug') set(o, 'plug', raw || undefined);
         if (prop === 'y') o.at = num > 0 ? [x, round(num), z] : [x, z];
         if ('wdh'.includes(prop) && num > 0) {
           const n = sizeOf(o), v = [...stretchOf(o)];

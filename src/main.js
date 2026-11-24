@@ -4,6 +4,7 @@ import './style.css';
 import './models/defaults.js';
 import './models/ikea.js';
 import './models/tech.js';
+import { POWER_MODELS, portsOf } from './models/power.js';
 import './models/shelf.js';
 import './models/decor.js';
 import { createScene } from './scene.js';
@@ -15,6 +16,7 @@ import { attachBehaviors } from './behaviors.js';
 import { createEditor } from './editor.js';
 import { createClimateDialog } from './dialogs/climate.js';
 import { createCameraDialog } from './dialogs/camera.js';
+import { createRoomPanel } from './dialogs/room.js';
 import { createPlanner } from './planner.js';
 import { storedHouse, storeHouse, saveLocally } from './house-file.js';
 import { createWeather, fetchOpenMeteo, sunPosition, CONDITIONS } from './weather.js';
@@ -71,7 +73,7 @@ store.subscribe((id, s) => {
 document.getElementById('title').textContent = house.name;
 
 // --- edit mode: move, rotate, remove and add objects
-const editor = createEditor({ world, built, house, container: document.getElementById('app'), say });
+const editor = createEditor({ world, built, house, container: document.getElementById('app'), say, bubbles: behaviors.bubbles });
 const editButton = document.getElementById('edit');
 editButton.addEventListener('click', () => {
   editor.setEnabled(!editor.enabled);
@@ -117,7 +119,7 @@ importFile.addEventListener('change', async () => {
 });
 
 // --- floor-plan editor: walls, doors, windows and furniture in 2D
-const planner = createPlanner({ house, say });
+const planner = createPlanner({ house, say, links, entities: () => [...store.states.keys()].sort() });
 document.getElementById('plan').addEventListener('click', () => {
   editor.setEnabled(false);
   editButton.classList.remove('active');
@@ -420,6 +422,116 @@ store.subscribe((id, s) => {
   if (source === ha && s && id === haWeather()?.entity_id) weather.fromHa(s.state);
 });
 
+// --- floor balloons: in the closed-up house every floor floats a label with its
+// room count and lights on. Click one (or the floor) and that floor opens; the
+// balloons go away while a floor is open.
+const balloons = realFloors.map((f) => {
+  const el = document.createElement('button');
+  el.className = 'balloon';
+  el.dataset.floor = f.id;
+  el.addEventListener('click', () => showView(f.id));
+  document.body.append(el);
+  // the footprint of the building itself (not the garden), to hang the balloon on its edge
+  const rooms = f.def.rooms ?? [];
+  const rects = (rooms.some((r) => !r.outdoor) ? rooms.filter((r) => !r.outdoor) : rooms).map((r) => r.rect);
+  const x0 = Math.min(...rects.map((r) => r[0])), x1 = Math.max(...rects.map((r) => r[0] + r[2]));
+  const z0 = Math.min(...rects.map((r) => r[1])), z1 = Math.max(...rects.map((r) => r[1] + r[3]));
+  return { f, el, text: '', corners: [0, 1, 2, 3].map(() => new THREE.Vector3()), pick: null, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, hx: (x1 - x0) / 2, hz: (z1 - z0) / 2, y: f.level * house.floorHeight + 1.2 };
+});
+const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const CORNERS = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+const corner = new THREE.Vector3(), projected = new THREE.Vector3();
+function updateBalloons(dt) {
+  const show = built.view === 'outside' && !editor.enabled;
+  const r = canvas.getBoundingClientRect();
+  for (const b of balloons) {
+    b.el.classList.toggle('show', show);
+    if (!show) { b.anchor = null; b.pick = null; continue; }
+    const rooms = (b.f.def.rooms ?? []).filter((x) => !x.outdoor).length;
+    let lights = 0;
+    for (const e of built.objects.values()) {
+      if (e.floorId === b.f.id && e.def.kind === 'light' && links[e.def.id] && store.get(links[e.def.id])?.state === 'on') lights++;
+    }
+    const text = `<b>${escHtml(b.f.name ?? b.f.id)}</b><span>${plural(rooms, 'room')}${lights ? ` · ${plural(lights, 'light')} on` : ''}</span>`;
+    if (text !== b.text) b.el.innerHTML = b.text = text;
+    // The balloon is tied to a point on the wall: the corner of the floor's outline that is
+    // furthest left on screen. The point is fixed in the world, so it turns with the house;
+    // when another corner becomes the outermost it slides along the wall to it.
+    const xs = CORNERS.map(([sx, sz], k) => {
+      corner.set(b.cx + sx * b.hx, b.y, b.cz + sz * b.hz);
+      built.root.localToWorld(corner);
+      b.corners[k].copy(corner);
+      return projected.copy(corner).project(world.camera).x;
+    });
+    // keep the current corner until another is clearly further left, so it doesn't flicker
+    const lowest = xs.indexOf(Math.min(...xs));
+    if (b.pick == null || xs[lowest] < xs[b.pick] - 0.06) b.pick = lowest;
+    const best = b.corners[b.pick];
+    if (!b.anchor) b.anchor = best.clone();
+    b.anchor.lerp(best, 1 - Math.exp(-dt * 9));
+    projected.copy(b.anchor).project(world.camera);
+    const ax = r.left + ((projected.x + 1) / 2) * r.width, ay = r.top + ((1 - projected.y) / 2) * r.height;
+    b.el.style.transform = `translate(${ax - 26}px, ${ay}px) translate(-100%, -50%)`;
+  }
+}
+
+// --- room balloons: with a floor open, every room floats its name; click it for
+// the list of entities in that room (src/dialogs/room.js)
+let roomPanel = null; // made once the control windows exist
+const area = ([, , w, d]) => w * d;
+const roomName = (r) => r.name ?? r.id;
+// rooms that share a name (one living room drawn as two rectangles) are one room
+function roomItems(f, room) {
+  return [...built.objects.values()].filter((e) => {
+    if (e.floorId !== f.id || !links[e.def.id]) return false;
+    const { x, z } = e.object3d.position;
+    // inside nested rooms (a wardrobe in a hallway) it belongs to the smallest one
+    const inside = (f.def.rooms ?? []).filter((r) => x >= r.rect[0] && x <= r.rect[0] + r.rect[2] && z >= r.rect[1] && z <= r.rect[1] + r.rect[3]);
+    return inside.length && roomName(inside.reduce((a, b) => (area(b.rect) < area(a.rect) ? b : a))) === roomName(room);
+  }).map((e) => ({ id: e.def.id, entityId: links[e.def.id], entry: e }));
+}
+// glide the camera to a room and zoom to fit it (the view angle stays as it is)
+const focusPoint = new THREE.Vector3();
+function focusRoom(f, room) {
+  const [x, z, w, d] = room.rect;
+  built.root.localToWorld(focusPoint.set(x + w / 2, f.level * house.floorHeight + 0.6, z + d / 2));
+  world.panTo(focusPoint.x, focusPoint.z);
+  world.lookAtHeight(focusPoint.y);
+  world.zoomTo(THREE.MathUtils.clamp(17 / (Math.max(w, d) * 1.3 + 3), 1.2, 4.5));
+}
+const pills = [];
+for (const f of realFloors) {
+  for (const room of f.def.rooms ?? []) {
+    // one balloon per name, on the largest rectangle with that name
+    if ((f.def.rooms ?? []).some((r) => roomName(r) === roomName(room) && (area(r.rect) > area(room.rect) || (area(r.rect) === area(room.rect) && r !== room && f.def.rooms.indexOf(r) < f.def.rooms.indexOf(room))))) continue;
+    const el = document.createElement('button');
+    el.className = 'roompill';
+    el.textContent = room.name ?? room.id;
+    el.addEventListener('click', () => {
+      roomPanel?.open({ name: room.name ?? room.id, floorId: f.id, items: roomItems(f, room) });
+      focusRoom(f, room);
+    });
+    document.body.append(el);
+    const [x, z, w, d] = room.rect;
+    pills.push({ f, el, at: new THREE.Vector3(x + w / 2, f.level * house.floorHeight + 0.4, z + d / 2) });
+  }
+}
+const pillPos = new THREE.Vector3();
+function updateRoomPills() {
+  if (roomPanel?.floorId && roomPanel.floorId !== built.view) roomPanel.close();
+  const r = canvas.getBoundingClientRect();
+  for (const p of pills) {
+    const show = built.view === p.f.id && !editor.enabled;
+    p.el.classList.toggle('show', show);
+    if (!show) continue;
+    pillPos.copy(p.at);
+    built.root.localToWorld(pillPos).project(world.camera);
+    p.el.style.transform = `translate(${r.left + ((pillPos.x + 1) / 2) * r.width}px, ${r.top + ((1 - pillPos.y) / 2) * r.height}px) translate(-50%, -50%)`;
+  }
+}
+
+let bubbleView = null; // the view the icon bubbles were last filtered for
 // --- loop
 const clock = new THREE.Clock();
 world.renderer.setAnimationLoop(() => {
@@ -430,6 +542,10 @@ world.renderer.setAnimationLoop(() => {
   editor.update();
   weather.update(dt, clock.elapsedTime);
   world.update(dt);
+  // overlays go last, so they use the camera as just drawn (no trailing behind the house)
+  if (built.view !== bubbleView) behaviors.bubbles.showFloor((bubbleView = built.view));
+  updateBalloons(dt);
+  updateRoomPills();
 });
 
 const wanted = staticSite ? 'simulated' : (query.get('mode') ?? localStorage.getItem('twin.mode') ?? 'real');
@@ -454,10 +570,12 @@ const dialogs = {
   climate: createClimateDialog({ store, getSource: () => source, say, roomOf }),
   camera: createCameraDialog({ store, getSource: () => source, roomOf }),
 };
+roomPanel = createRoomPanel({ store, getSource: () => source, say, openEntry: (entry) => entry && dialogs[entry.kind.dialog]?.open(entry) });
 
 // --- picking: click an object that has a behaviour
 
-function pick(event) {
+// The object under the pointer (any object, not just clickable ones).
+function entryAt(event) {
   const r = canvas.getBoundingClientRect();
   pointer.set(((event.clientX - r.left) / r.width) * 2 - 1, -((event.clientY - r.top) / r.height) * 2 + 1);
   raycaster.setFromCamera(pointer, world.camera);
@@ -466,10 +584,60 @@ function pick(event) {
     for (let p = o; p; p = p.parent) shown &&= p.visible;
     if (!shown) continue;
     while (o && !o.userData.objectId) o = o.parent;
-    const entry = o && built.objects.get(o.userData.objectId);
-    return (entry?.kind?.click || entry?.kind?.dialog) && entry.entityId ? entry : null;
+    return (o && built.objects.get(o.userData.objectId)) || null;
   }
   return null;
+}
+const clickable = (entry) => ((entry?.kind?.click || entry?.kind?.dialog) && entry.entityId ? entry : null);
+function pick(event) {
+  return clickable(entryAt(event));
+}
+
+// --- power points: hover a socket or power strip to see what is plugged into it.
+// A device says which socket it uses with `plug: <socket id>` in house.yaml
+// (the plan editor has a "Plugged into" field for it).
+const plugTip = document.createElement('div');
+plugTip.id = 'plugtip';
+plugTip.hidden = true;
+document.body.append(plugTip);
+const nice = (t) => String(t).replaceAll('_', ' ').replace(/^./, (c) => c.toUpperCase());
+function deviceLine(def, depth = 0) {
+  const s = links[def.id] && store.get(links[def.id]);
+  const name = s?.attributes?.friendly_name ?? nice(def.id);
+  const watts = s?.attributes?.current_power_w ?? s?.attributes?.power;
+  const state = s && !['unknown', 'unavailable'].includes(s.state) ? s.state : null;
+  const detail = [state, watts != null ? `${watts} W` : null].filter(Boolean).join(' · ');
+  let html = `<li class="${state === 'on' || watts > 0 ? 'live' : ''}" style="margin-left:${depth * 12}px"><b>${escHtml(name)}</b>${detail ? `<span>${escHtml(detail)}</span>` : ''}</li>`;
+  if (POWER_MODELS.includes(def.model)) for (const d of pluggedInto(def.id)) html += deviceLine(d, depth + 1);
+  return html;
+}
+const pluggedInto = (id) => [...built.objects.values()].filter((e) => e.def.plug === id).map((e) => e.def);
+// Sockets and strips are tiny, so the hover reaches 40 px around them on screen
+// instead of needing a hit on the model itself.
+const HOVER_RADIUS = 40;
+const hoverBox = new THREE.Box3(), hoverPoint = new THREE.Vector3();
+function socketNear(e) {
+  const r = canvas.getBoundingClientRect();
+  let best = null, bestDist = HOVER_RADIUS;
+  for (const entry of built.objects.values()) {
+    if (!POWER_MODELS.includes(entry.def.model)) continue;
+    let shown = true;
+    for (let p = entry.object3d; p; p = p.parent) shown &&= p.visible;
+    if (!shown) continue;
+    hoverBox.setFromObject(entry.object3d).getCenter(hoverPoint).project(world.camera);
+    const dist = Math.hypot(r.left + ((hoverPoint.x + 1) / 2) * r.width - e.clientX, r.top + ((1 - hoverPoint.y) / 2) * r.height - e.clientY);
+    if (dist < bestDist) [best, bestDist] = [entry, dist];
+  }
+  return best;
+}
+function showPlugTip(entry, e) {
+  const list = pluggedInto(entry.def.id), ports = portsOf(entry.def);
+  plugTip.innerHTML = `<h4>${escHtml(nice(entry.def.model))} <small>${list.length} of ${ports} in use</small></h4>${
+    list.length ? `<ul>${list.map((d) => deviceLine(d)).join('')}</ul>` : '<p>Nothing plugged in</p>'}`;
+  plugTip.hidden = false;
+  const w = plugTip.offsetWidth, h = plugTip.offsetHeight;
+  plugTip.style.left = `${Math.min(e.clientX + 16, innerWidth - w - 8)}px`;
+  plugTip.style.top = `${Math.min(e.clientY + 16, innerHeight - h - 8)}px`;
 }
 
 // The floor a click landed on: the floor that the clicked wall, slab or piece
@@ -492,7 +660,8 @@ function floorAt(event) {
 }
 
 let downAt = null;
-canvas.addEventListener('pointerdown', (e) => (downAt = [e.clientX, e.clientY]));
+canvas.addEventListener('pointerdown', (e) => ((downAt = [e.clientX, e.clientY]), (plugTip.hidden = true)));
+canvas.addEventListener('pointerleave', () => (plugTip.hidden = true));
 canvas.addEventListener('pointerup', (e) => {
   if (editor.enabled) return;
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
@@ -505,7 +674,12 @@ canvas.addEventListener('pointerup', (e) => {
 canvas.addEventListener('pointermove', (e) => {
   const r = canvas.getBoundingClientRect();
   lastPointer = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-  if (!editor.enabled) canvas.style.cursor = pick(e) ? 'pointer' : 'grab';
+  if (editor.enabled || e.buttons) { plugTip.hidden = true; return; }
+  const entry = entryAt(e);
+  canvas.style.cursor = clickable(entry) ? 'pointer' : 'grab';
+  const socket = entry && POWER_MODELS.includes(entry.def.model) ? entry : socketNear(e);
+  if (socket) showPlugTip(socket, e);
+  else plugTip.hidden = true;
 });
 
 // handy for debugging from the console

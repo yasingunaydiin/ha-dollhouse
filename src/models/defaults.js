@@ -597,6 +597,65 @@ registerModel('philips_heater', ({ scale: _s, radius = 0.105, height = 0.3 } = {
   return g;
 });
 
+// gologi glass convector heater, 2000 W: a white glass panel on two angled feet
+// with a dot-matrix temperature display top right. Stands on the floor, or hangs
+// on a wall with the "Placement height" field. params: width, height (panel).
+registerModel('gologi_heater', ({ width = 0.77, height = 0.43 } = {}) => {
+  const depth = 0.07, footH = 0.055, bottom = footH;
+  const glass = (color) => mat(color, { roughness: 0.12, metalness: 0.05 });
+  const g = group();
+  // body: the glass panel with softly rounded corners, and a slimmer white frame behind it
+  const panel = new THREE.Mesh(new RoundedBoxGeometry(width, height, depth, 4, 0.022), glass('#f4f5f6'));
+  panel.position.y = bottom + height / 2;
+  const back = box(width - 0.03, height - 0.03, 0.012, '#e6e7e9', 0, bottom + 0.015, -depth / 2 + 0.002, 0.01);
+  g.add(back, panel);
+  // feet
+  for (const sx of [-1, 1]) {
+    g.add(box(0.07, footH, 0.2, '#e8e9eb', sx * (width / 2 - 0.075), 0, 0, 0.012));
+    g.add(box(0.07, 0.012, 0.21, '#d4d6d9', sx * (width / 2 - 0.075), footH - 0.004, 0, 0.004));
+  }
+  // dot-matrix display "20°", lit up while heating
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 128;
+  const x = c.getContext('2d');
+  x.fillStyle = '#000';
+  x.fillRect(0, 0, 256, 128);
+  x.fillStyle = '#fff';
+  x.font = '700 92px ui-monospace, Menlo, monospace';
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.fillText('20°', 128, 70);
+  const lit = new THREE.CanvasTexture(c);
+  lit.colorSpace = THREE.SRGBColorSpace;
+  const display = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.1, 0.05),
+    new THREE.MeshStandardMaterial({ color: '#d9dce0', roughness: 0.3, emissive: '#ffffff', emissiveMap: lit, emissiveIntensity: 0 })
+  );
+  display.name = 'glow_display';
+  display.position.set(width / 2 - 0.085, bottom + height - 0.06, depth / 2 + 0.0006);
+  g.add(display);
+  // small touch icons under the display
+  for (let k = 0; k < 4; k++) g.add(cyl(0.0042, 0.0042, 0.001, '#b9bcc1', width / 2 - 0.125 + k * 0.0125, bottom + height - 0.108, depth / 2, 14).rotateX(Math.PI / 2));
+  // logo
+  const l = document.createElement('canvas');
+  l.width = 256;
+  l.height = 64;
+  const lc = l.getContext('2d');
+  lc.fillStyle = '#4a4d52';
+  lc.font = '700 40px system-ui, sans-serif';
+  lc.textAlign = 'center';
+  lc.textBaseline = 'middle';
+  lc.fillText('gologi', 128, 34);
+  const logoTex = new THREE.CanvasTexture(l);
+  logoTex.colorSpace = THREE.SRGBColorSpace;
+  const logo = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.015), new THREE.MeshBasicMaterial({ map: logoTex, transparent: true }));
+  logo.position.set(0, bottom + 0.035, depth / 2 + 0.0006);
+  g.add(logo);
+  g.add(anchor(0, bottom + height * 0.5, depth / 2 + 0.1));
+  return g;
+});
+
 // ───────────────────────── modelled on photos of the actual house
 const LEATHER = '#7a4a2e';
 const COPPER = '#c98562';

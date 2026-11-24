@@ -4,13 +4,14 @@
 //   GET  /api/house/house.yaml, /api/house/links.yaml   the current files
 //   POST /api/house/edit    { op: 'move' | 'remove' | 'add', floor, id, at, rot, def }
 //                           { op: 'setFloor', floor, wallList, objects }  (floor-plan editor)
+//   POST /api/house/link    { id, entity }   set or (entity null) remove an object's entity in links.yaml
 //   GET  /api/house/export  the whole house as one downloadable file
 //   POST /api/house/import  such a file; replaces the house (the old one is kept in data/backups)
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { applyEdit } from '../src/house-edit.js';
+import { applyEdit, applyLink } from '../src/house-edit.js';
 
 const FILES = ['house.yaml', 'links.yaml'];
 const FORMAT = 'house-twin';
@@ -27,6 +28,7 @@ export function createHouseStore({ dir = 'data', templates = 'templates' } = {})
   }
   const read = async (name) => (await ready(), readFile(path(name), 'utf8'));
 
+  const link = async ({ id, entity }) => writeFile(path('links.yaml'), applyLink(await read('links.yaml'), id, entity));
   const edit = async (change) => writeFile(path('house.yaml'), applyEdit(await read('house.yaml'), change));
 
   // The export keeps both files as text, so comments survive a round trip.
@@ -76,6 +78,11 @@ export function createHouseStore({ dir = 'data', templates = 'templates' } = {})
       } else if (req.method === 'POST' && name === 'edit') {
         const change = await body();
         await inTurn(() => edit(change));
+        json(200, { ok: true });
+      } else if (req.method === 'POST' && name === 'link') {
+        const change = await body();
+        if (typeof change?.id !== 'string' || (change.entity != null && typeof change.entity !== 'string')) throw new Error('A link needs an object id and an entity id');
+        await inTurn(() => link(change));
         json(200, { ok: true });
       } else if (req.method === 'POST' && name === 'import') {
         const data = await body();

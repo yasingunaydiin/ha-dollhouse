@@ -85,12 +85,13 @@ export function createScene(container, view = {}, frontBearing = 180) {
   resize();
 
   let night = 0, nightTarget = 0;
-  let heightGoal = null, zoomGoal = null;
+  let heightGoal = null, zoomGoal = null, panGoal = null;
   const shiftHeight = (dy) => {
     controls.target.y += dy;
     camera.position.y += dy;
   };
   renderer.domElement.addEventListener('wheel', () => (zoomGoal = null), { passive: true });
+  renderer.domElement.addEventListener('pointerdown', () => (panGoal = null)); // grabbing the view cancels a glide
   const cameraDir = new THREE.Vector3();
 
   // where the light should be: unit direction, strength and colour
@@ -149,6 +150,8 @@ export function createScene(container, view = {}, frontBearing = 180) {
     },
     // glide to a zoom level (a scroll by the user cancels it)
     zoomTo(z) { zoomGoal = z; },
+    // glide sideways so the camera looks at (x, z), keeping the viewing angle
+    panTo(x, z) { panGoal = { x, z }; },
     get cameraDir() {
       return cameraDir.subVectors(camera.position, controls.target).setY(0).normalize();
     },
@@ -158,6 +161,13 @@ export function createScene(container, view = {}, frontBearing = 180) {
         const next = Math.abs(heightGoal - y) < 0.005 ? heightGoal : THREE.MathUtils.damp(y, heightGoal, 5, dt);
         shiftHeight(next - y);
         if (next === heightGoal) heightGoal = null;
+      }
+      if (panGoal) {
+        const dx = panGoal.x - controls.target.x, dz = panGoal.z - controls.target.z;
+        const k = Math.hypot(dx, dz) < 0.01 ? 1 : 1 - Math.exp(-5 * dt);
+        controls.target.x += dx * k; camera.position.x += dx * k;
+        controls.target.z += dz * k; camera.position.z += dz * k;
+        if (k === 1) panGoal = null;
       }
       if (zoomGoal !== null) {
         camera.zoom = Math.abs(zoomGoal - camera.zoom) < 0.003 ? zoomGoal : THREE.MathUtils.damp(camera.zoom, zoomGoal, 5, dt);

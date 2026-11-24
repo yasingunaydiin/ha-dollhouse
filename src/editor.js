@@ -8,7 +8,7 @@ import { saveEdit } from './house-file.js';
 const SNAP = 0.05; // metres
 const ROT_STEP = 45; // degrees
 
-export function createEditor({ world, built, house, container, say }) {
+export function createEditor({ world, built, house, container, say, bubbles }) {
   const canvas = world.renderer.domElement;
   const raycaster = new THREE.Raycaster();
   const plane = new THREE.Plane();
@@ -72,6 +72,23 @@ export function createEditor({ world, built, house, container, say }) {
   // ── the number fields: turn, raise, and size in metres
   const fields = Object.fromEntries([...panel.querySelectorAll('.fields input')].map((i) => [i.dataset.f, i]));
   const resetSize = panel.querySelector('.reset-size');
+  // ── the icon bubble: shown on electronic devices by default, and the user can hide or add it
+  const bubbleBox = panel.querySelector('.bubble');
+  function setBubble(entry, flag) {
+    // flag: true, false, or undefined for "the default"
+    if (flag === undefined) delete entry.def.bubble;
+    else entry.def.bubble = flag;
+    bubbles.set(entry, flag ?? bubbles.byDefault(entry));
+    save({ op: 'set', floor: entry.floorId, id: entry.def.id, key: 'bubble', value: flag ?? null });
+    if (entry === selected) fill();
+  }
+  bubbleBox.addEventListener('change', () => {
+    if (!selected) return;
+    const entry = selected, before = entry.def.bubble, on = bubbleBox.checked;
+    const after = on === bubbles.byDefault(entry) ? undefined : on;
+    setBubble(entry, after);
+    record({ label: `${on ? 'show' : 'hide'} icon on ${entry.def.id}`, undo: () => setBubble(entry, before), redo: () => setBubble(entry, after) });
+  });
   const stretchOf = (entry) => entry.def.stretch ?? [1, 1, 1];
   // the object's size as it stands now, measured along its own width / height / depth
   function sizeNow(entry) {
@@ -92,6 +109,7 @@ export function createEditor({ world, built, house, container, say }) {
     fields.h.value = r2(h);
     fields.d.value = r2(d);
     resetSize.hidden = !selected.def.stretch;
+    bubbleBox.checked = bubbles.has(selected);
   }
   function editField(key) {
     if (!selected) return;

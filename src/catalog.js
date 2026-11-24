@@ -8,6 +8,7 @@ const ROOMS = ['Living', 'Dining', 'Kitchen', 'Bedroom', 'Bathroom', 'Office', '
 // first matching pattern wins; each model belongs to one room category
 const CATEGORY = [
   ['Living', /nintendo/],
+  ['Utility', /^wall_socket|^power_strip/],
   ['Office', /macbook|logitech/],
   ['Hall', /arch_mirror|jute_runner/],
   ['Living', /wavy_black_mirror|glass_globe|curtain|blinds|bamboo_pendant|tapestry|wall_clock|laminate/],

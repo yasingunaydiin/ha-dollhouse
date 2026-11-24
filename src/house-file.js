@@ -1,7 +1,7 @@
 // Saving edits. With the dev/preview server they go to data/house.yaml; on a
 // static host (GitHub Pages) there is no server, so the edited house is kept
 // in this browser's localStorage instead.
-import { applyEdit } from './house-edit.js';
+import { applyEdit, applyLink } from './house-edit.js';
 
 export const STORED = 'twin.static-house';
 let local = null; // { 'house.yaml': text, 'links.yaml': text } on a static site
@@ -28,6 +28,22 @@ export async function saveEdit(change) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(change),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `the server answered ${res.status}`);
+}
+
+// link one object to a Home Assistant entity (null removes the link)
+export async function saveLink(id, entity) {
+  if (local) {
+    const text = applyLink(storedHouse()?.links ?? local['links.yaml'], id, entity);
+    storeHouse(storedHouse()?.house ?? local['house.yaml'], text);
+    local['links.yaml'] = text;
+    return;
+  }
+  const res = await fetch('/api/house/link', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, entity: entity || null }),
   });
   if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `the server answered ${res.status}`);
 }

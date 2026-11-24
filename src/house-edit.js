@@ -43,7 +43,22 @@ export function applyEdit(text, change) {
     // stretch is only touched when the edit mentions it (null = back to original size)
     if (change.stretch) item.set('stretch', flow(change.stretch));
     else if ('stretch' in change) item.delete('stretch');
+  } else if (change.op === 'set') {
+    // set one field of an object, or remove it when the value is null
+    const item = objects.items[index];
+    if (change.value == null) item.delete(change.key);
+    else item.set(change.key, change.value);
   } else throw new Error(`Unknown edit "${change.op}"`);
 
   return done();
+}
+
+// Set (or, with no entity, remove) the Home Assistant entity of one object in
+// links.yaml. Comments and the rest of the file stay as they are.
+export function applyLink(text, id, entity) {
+  const doc = parseDocument(text || '{}');
+  if (!doc.contents || !doc.contents.items) doc.contents = doc.createNode({});
+  if (entity) doc.set(id, entity);
+  else doc.delete(id);
+  return doc.toString({ lineWidth: 0 });
 }

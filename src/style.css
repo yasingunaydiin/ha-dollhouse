@@ -283,3 +283,60 @@ body.night #weather {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23cfd3ea' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 #weather:focus-visible { outline: 2px solid #1f9fd0; outline-offset: 1px; }
+
+/* hover window on sockets and power strips */
+#plugtip { position: fixed; z-index: 30; pointer-events: none; min-width: 180px; max-width: 280px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 252, 245, 0.96); color: #3a332b; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.22); font: 13px/1.35 system-ui, sans-serif; }
+#plugtip[hidden] { display: none; }
+#plugtip h4 { margin: 0 0 6px; font-size: 13px; }
+#plugtip h4 small { font-weight: 400; opacity: 0.6; margin-left: 4px; }
+#plugtip p { margin: 0; opacity: 0.6; }
+#plugtip ul { list-style: none; margin: 0; padding: 0; }
+#plugtip li { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-top: 1px solid rgba(0, 0, 0, 0.07); }
+#plugtip li span { opacity: 0.65; white-space: nowrap; }
+#plugtip li.live b::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #ff8a3c; }
+body.night #plugtip { background: rgba(38, 42, 62, 0.95); color: #e8e6f0; }
+
+/* floor balloons over the closed-up house */
+.balloon { position: fixed; left: 0; top: 0; z-index: 20; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 16px; border: 0; border-radius: 12px; background: #2fd2ff; color: #08162b; font: inherit; text-align: left; white-space: nowrap; cursor: pointer; box-shadow: 0 6px 20px rgba(20, 120, 170, 0.35); opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+.balloon.show { opacity: 1; pointer-events: auto; }
+.balloon b { font-size: 16px; font-weight: 700; }
+.balloon span { font-size: 13px; opacity: 0.75; }
+.balloon:hover { background: #5fe0ff; }
+body.embed .balloon { display: none; }
+
+/* room name balloons and the room panel */
+.roompill { position: fixed; left: 0; top: 0; z-index: 18; padding: 5px 12px; border: 1px solid rgba(143, 196, 255, 0.25); border-radius: 10px; background: rgba(16, 24, 44, 0.9); color: #e8eefc; font: 600 13px system-ui, sans-serif; white-space: nowrap; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 0.2s, background 0.15s; }
+.roompill.show { opacity: 1; pointer-events: auto; }
+.roompill:hover { background: #1d2a4d; border-color: #2fd2ff; }
+body.embed .roompill { display: none; }
+#roompanel { position: fixed; z-index: 35; top: 84px; right: 20px; width: 330px; max-height: calc(100vh - 120px); display: flex; flex-direction: column; border-radius: 16px; background: #10182c; color: #e8eefc; border: 1px solid rgba(143, 196, 255, 0.18); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4); font: 14px system-ui, sans-serif; }
+#roompanel[hidden] { display: none; }
+#roompanel header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid rgba(143, 196, 255, 0.12); }
+#roompanel header strong { font-size: 18px; }
+#roompanel .close { width: 34px; height: 34px; border: 0; border-radius: 50%; background: #1b2644; color: #e8eefc; cursor: pointer; }
+#roompanel .body { overflow-y: auto; padding: 4px 16px 14px; }
+#roompanel h5 { margin: 14px 0 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #8794b5; }
+#roompanel ul { list-style: none; margin: 0; padding: 0; }
+#roompanel li { padding: 8px 0; border-top: 1px solid rgba(143, 196, 255, 0.08); }
+#roompanel li[data-open] { cursor: pointer; }
+#roompanel .line { display: flex; align-items: center; gap: 10px; }
+#roompanel .ic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #1b2644; color: #7f8cab; flex: none; }
+#roompanel li.on .ic { color: #8fc4ff; }
+#roompanel .ic svg { width: 16px; height: 16px; }
+#roompanel b { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#roompanel em { font-style: normal; color: #8794b5; font-size: 13px; }
+#roompanel .ctl { display: flex; gap: 6px; margin: 8px 0 0 40px; }
+#roompanel .ctl button { width: 40px; height: 30px; border: 1px solid rgba(143, 196, 255, 0.25); border-radius: 8px; background: #1b2644; color: #e8eefc; cursor: pointer; }
+#roompanel .ctl button:hover { border-color: #2fd2ff; }
+#roompanel .sw { position: relative; width: 38px; height: 22px; border: 0; border-radius: 11px; background: #2a3556; cursor: pointer; flex: none; }
+#roompanel .sw i { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #9aa6c4; transition: transform 0.15s; }
+#roompanel .sw.on { background: #2fa8d8; }
+#roompanel .sw.on i { transform: translateX(16px); background: #fff; }
+#roompanel .none { color: #8794b5; padding: 14px 0; margin: 0; }
+body.embed #roompanel { display: none; }
+
+/* the balloon is tied to the wall by a short line ending in a dot */
+.balloon::after { content: ''; position: absolute; left: 100%; top: 50%; width: 26px; height: 2px; margin-top: -1px; background: #2fd2ff; }
+.balloon::before { content: ''; position: absolute; left: calc(100% + 21px); top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: #2fd2ff; box-shadow: 0 0 0 3px rgba(47, 210, 255, 0.3); z-index: 1; }
+
+#editor .bubble-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; cursor: pointer; }

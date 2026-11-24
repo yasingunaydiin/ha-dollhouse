@@ -1,6 +1,32 @@
 // Behaviours ("profiles"): how each kind of object reflects an entity's state,
 // and what a click on it does. Add a new kind here to support covers, TVs, etc.
 import * as THREE from 'three';
+import { POWER_MODELS, portsOf } from './models/power.js';
+
+// line icons drawn around (0, 0), about 40 px across
+function glyph(c, name, on, glow) {
+  c.strokeStyle = c.fillStyle = on ? glow : '#6f7a99';
+  c.lineWidth = 3.5;
+  c.lineCap = c.lineJoin = 'round';
+  if (name === 'monitor') {
+    c.beginPath(); c.roundRect(-17, -16, 34, 24, 4); c.stroke();
+    c.beginPath(); c.moveTo(-7, 15); c.lineTo(7, 15); c.moveTo(0, 8); c.lineTo(0, 15); c.stroke();
+    c.beginPath(); c.moveTo(-4, -10); c.lineTo(6, -4); c.lineTo(-4, 2); c.closePath(); c.fill();
+  } else if (name === 'bulb') {
+    c.beginPath(); c.arc(0, -6, 13, Math.PI * 0.78, Math.PI * 0.22); c.lineTo(6, 13); c.lineTo(-6, 13); c.closePath(); c.stroke();
+    c.beginPath(); c.moveTo(-6, 19); c.lineTo(6, 19); c.stroke();
+    if (on) { c.beginPath(); c.arc(0, -6, 6, 0, Math.PI * 2); c.globalAlpha = 0.5; c.fill(); }
+  } else if (name === 'flame') {
+    c.beginPath(); c.moveTo(0, -17); c.bezierCurveTo(12, -4, 15, 3, 15, 8); c.bezierCurveTo(15, 15, 8, 19, 0, 19); c.bezierCurveTo(-8, 19, -15, 15, -15, 8); c.bezierCurveTo(-15, 2, -8, -3, 0, -17); c.closePath(); c.stroke();
+    c.beginPath(); c.moveTo(0, 5); c.bezierCurveTo(5, 9, 5, 14, 0, 15); c.bezierCurveTo(-5, 14, -5, 9, 0, 5); c.fill();
+  } else if (name === 'camera') {
+    c.beginPath(); c.roundRect(-18, -11, 25, 22, 4); c.stroke();
+    c.beginPath(); c.moveTo(9, -3); c.lineTo(18, -9); c.lineTo(18, 9); c.lineTo(9, 3); c.closePath(); c.stroke();
+  } else {
+    c.beginPath(); c.roundRect(-10, -3, 20, 16, 5); c.stroke();
+    c.beginPath(); c.moveTo(-5, -3); c.lineTo(-5, -14); c.moveTo(5, -3); c.lineTo(5, -14); c.moveTo(0, 13); c.lineTo(0, 19); c.stroke();
+  }
+}
 
 // small floating text bubble (always drawn on top)
 function makeLabel() {
@@ -12,19 +38,87 @@ function makeLabel() {
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true }));
   sprite.scale.set(0.6, 0.3, 1);
   sprite.renderOrder = 10;
+  // `allowed` is the floor filter: with a floor open only that floor's bubbles show
+  let has = true, allowed = true;
   return {
     sprite,
+    allow(on) {
+      allowed = on;
+      sprite.visible = has && allowed;
+    },
+    // a round badge with a line icon instead of words (light, monitor, camera, plug)
+    icon(name, on, glow = '#8fc4ff') {
+      const c = canvas.getContext('2d');
+      c.clearRect(0, 0, 192, 96);
+      has = true;
+      sprite.visible = allowed;
+      c.save();
+      c.translate(96, 48);
+      c.beginPath();
+      c.arc(0, 0, 44, 0, Math.PI * 2);
+      c.strokeStyle = on ? glow : 'rgba(120, 135, 175, 0.35)';
+      c.globalAlpha = on ? 0.35 : 0.5;
+      c.lineWidth = 3;
+      c.stroke();
+      c.globalAlpha = 1;
+      c.beginPath();
+      c.arc(0, 0, 37, 0, Math.PI * 2);
+      c.fillStyle = '#10182c';
+      c.fill();
+      c.lineWidth = 2;
+      c.strokeStyle = on ? glow : 'rgba(120, 135, 175, 0.55)';
+      c.stroke();
+      glyph(c, name, on, glow);
+      c.restore();
+      texture.needsUpdate = true;
+    },
+    // a pill with a line icon and a short text next to it (e.g. a socket: plug icon, "2/4")
+    iconText(name, text, on, glow = '#ffc98a') {
+      const c = canvas.getContext('2d');
+      c.clearRect(0, 0, 192, 96);
+      has = true;
+      sprite.visible = allowed;
+      c.save();
+      c.beginPath();
+      c.roundRect(6, 14, 180, 68, 34);
+      c.fillStyle = '#10182c';
+      c.fill();
+      c.lineWidth = 2.5;
+      c.strokeStyle = on ? glow : 'rgba(120, 135, 175, 0.5)';
+      c.stroke();
+      c.save();
+      c.translate(50, 48);
+      c.scale(0.8, 0.8);
+      glyph(c, name, on, glow);
+      c.restore();
+      let px = 40;
+      for (; px > 18; px -= 2) {
+        c.font = `700 ${px}px ui-rounded, system-ui, sans-serif`;
+        if (c.measureText(text).width <= 96) break;
+      }
+      c.fillStyle = on ? '#ffffff' : '#8794b5';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(text, 128, 50);
+      c.restore();
+      texture.needsUpdate = true;
+    },
     set(text, warm) {
       const c = canvas.getContext('2d');
       c.clearRect(0, 0, 192, 96);
-      sprite.visible = !!text;
+      has = !!text;
+      sprite.visible = has && allowed;
       if (!text) return;
       c.fillStyle = warm ? '#ff8a3c' : 'rgba(255, 252, 245, 0.95)';
       c.beginPath();
       c.roundRect(8, 12, 176, 72, 36);
       c.fill();
       c.fillStyle = warm ? '#fff' : '#3a332b';
-      c.font = '700 44px ui-rounded, system-ui, sans-serif';
+      let px = 44;
+      for (; px > 18; px -= 2) {
+        c.font = `700 ${px}px ui-rounded, system-ui, sans-serif`;
+        if (c.measureText(text).width <= 150) break;
+      }
       c.textAlign = 'center';
       c.textBaseline = 'middle';
       c.fillText(text, 96, 50);
@@ -124,7 +218,8 @@ const kinds = {
       const label = makeLabel();
       const size = new THREE.Box3().setFromObject(entry.object3d).getSize(new THREE.Vector3());
       label.sprite.position.y = size.y / entry.object3d.scale.y + 0.3;
-      entry.object3d.add(label.sprite);
+      label.sprite.scale.set(0.6 / entry.object3d.scale.x, 0.3 / entry.object3d.scale.y, 1);
+      if (entry.def.bubble !== false) entry.object3d.add(label.sprite);
       entry.climate = { glows, lamp, label, level: 0, target: 0 };
     },
     apply(entry, state) {
@@ -398,6 +493,139 @@ kinds.streetlight = {
   click() {},
 };
 
+// ───────────────────────── floating bubbles: the state of every linked object
+// and, over every socket and power strip, how many plugs are in use and the
+// power drawn by what is plugged in. Climate objects draw their own bubble.
+const UNITLESS = new Set(['on', 'off']);
+function stateText(s) {
+  if (!s) return '';
+  if (['unavailable', 'unknown'].includes(s.state)) return 'n/a';
+  const a = s.attributes ?? {};
+  if (s.state === 'on' && a.brightness != null) return `${Math.round((a.brightness / 255) * 100)}%`;
+  const unit = !UNITLESS.has(s.state) && a.unit_of_measurement ? ` ${a.unit_of_measurement}` : '';
+  return `${s.state}${unit}`;
+}
+const WARM = new Set(['on', 'playing', 'heat', 'open', 'home']);
+// domains that show a round icon badge instead of words
+const ICONS = {
+  light: { name: 'bulb', glow: '#ffc98a', active: (st) => st === 'on' },
+  media_player: { name: 'monitor', glow: '#8fc4ff', active: (st) => ['on', 'playing', 'paused', 'idle', 'buffering'].includes(st) },
+  camera: { name: 'camera', glow: '#8fc4ff', active: (st) => st !== 'off' },
+  switch: { name: 'plug', glow: '#ffc98a', active: (st) => st === 'on' },
+  input_boolean: { name: 'plug', glow: '#ffc98a', active: (st) => st === 'on' },
+};
+const wattsOf = (s) => Number(s?.attributes?.current_power_w ?? s?.attributes?.power) || 0;
+
+// Which electronic devices get an icon bubble even before an entity is linked to them,
+// so there is something to point at when you set the entity in the plan editor.
+// Whole words only (a "woven" rug is not an oven), brand names as the start of a word.
+const DEVICE_ICON = [
+  [/(^|_)(lamp|light|pendant|globe|chandelier|led)(_|$)/, 'bulb'],
+  [/(^|_)(tv|monitor|speaker|laptop)(_|$)|^(samsung_c|msi_|nintendo|macbook)/, 'monitor'],
+  [/(^|_)(camera|doorbell)(_|$)/, 'camera'],
+  [/(^|_)heater(_|$)/, 'flame'],
+  [/(^|_)(fan|printer|server|coffee_machine|fridge|freezer|dishwasher|washing_machine|dryer|oven|microwave|kettle|vacuum|router|charger|inverter|purifier|humidifier)(_|$)|samsung_xpress/, 'plug'],
+];
+// furniture that merely holds a device (a TV bench) is not one
+const HOLDS_DEVICES = /(^|_)(bench|stand|cabinet|shelf|unit|table)(_|$)/;
+function deviceIcon(entry, entityId) {
+  const { kind, model } = entry.def;
+  if (kind === 'pet' || kind === 'streetlight' || /(^|_)street(_|$)/.test(model)) return null;
+  const domain = entityId?.split('.')[0];
+  if (ICONS[domain]) return ICONS[domain].name;
+  if (kind === 'light') return 'bulb';
+  if (kind === 'media_player') return 'monitor';
+  if (kind === 'camera') return 'camera';
+  if (kind === 'climate') return 'flame';
+  const found = DEVICE_ICON.find(([re]) => re.test(model));
+  if (!found || (HOLDS_DEVICES.test(model) && found[1] !== 'bulb')) return null;
+  return found[1];
+}
+
+// does this object get an icon bubble without being told to? (the plan editor's checkbox starts from this)
+export const hasBubbleByDefault = (def, entityId) => POWER_MODELS.includes(def.model) || !!deviceIcon({ def }, entityId);
+
+function attachBubbles(objects, links, store) {
+  const bubbles = [];
+  const plugged = new Map(); // socket id -> entries plugged into it
+  for (const e of objects.values()) if (e.def.plug) plugged.set(e.def.plug, [...(plugged.get(e.def.plug) ?? []), e]);
+  const draw = (b) => {
+    if (b.power) {
+      const watts = (function sum(id) {
+        return (plugged.get(id) ?? []).reduce((t, e) => t + wattsOf(links[e.def.id] && store.get(links[e.def.id])) + (POWER_MODELS.includes(e.def.model) ? sum(e.def.id) : 0), 0);
+      })(b.entry.def.id);
+      const used = (plugged.get(b.entry.def.id) ?? []).length;
+      b.label.iconText('plug', watts ? `${Math.round(watts)} W` : `${used}/${portsOf(b.entry.def)}`, used > 0 || watts > 0);
+    } else {
+      const s = b.entityId && store.get(b.entityId);
+      if (!b.entityId) return b.label.icon(b.glyph, false); // no entity yet: a dim icon to click through to
+      const icon = ICONS[b.entityId.split('.')[0]];
+      const gone = !s || ['unavailable', 'unknown'].includes(s.state);
+      if (icon && s) b.label.icon(icon.name, !gone && icon.active(s.state), icon.glow);
+      else b.label.set(stateText(s), WARM.has(s?.state));
+    }
+  };
+  // make one object's bubble (if it should have one); the plan editor and the edit panel switch it on and off
+  const byEntry = new Map();
+  let shownView = 'outside';
+  function make(entry) {
+    const id = entry.def.id;
+    const power = POWER_MODELS.includes(entry.def.model);
+    if (entry.def.bubble === false || byEntry.has(entry)) return; // switched off by the user
+    // bubble: true puts one on an object that is not a known device
+    const glyph = power ? 'plug' : deviceIcon(entry, links[id]) ?? (entry.def.bubble ? 'plug' : null);
+    // linked climate objects draw their own temperature bubble
+    if (!power && ((entry.def.kind === 'climate' && links[id]) || (!links[id] && !glyph))) return;
+    const label = makeLabel();
+    const size = new THREE.Box3().setFromObject(entry.object3d).getSize(new THREE.Vector3());
+    const small = power ? 0.6 : 1; // sockets and strips are tiny, so their bubble is too
+    const sc = entry.object3d.scale;
+    label.sprite.scale.set((0.6 * small) / sc.x, (0.3 * small) / sc.y, 1); // undo a stretched object's scale, or the badge squashes
+    label.sprite.position.y = size.y / entry.object3d.scale.y + 0.3 * small;
+    entry.object3d.add(label.sprite);
+    const b = { entry, label, power, glyph, entityId: links[id] };
+    label.allow(shownView === 'outside' || entry.floorId === shownView);
+    bubbles.push(b);
+    byEntry.set(entry, b);
+    draw(b);
+  }
+  for (const entry of objects.values()) make(entry);
+  store.subscribe((entityId) => {
+    for (const b of bubbles) if (b.power || b.entityId === entityId) draw(b);
+  });
+  return {
+    // with a floor open, only that floor's bubbles show; in the whole-house view all of them do
+    showFloor(view) {
+      shownView = view;
+      for (const b of bubbles) b.label.allow(view === 'outside' || b.entry.floorId === view);
+      for (const e of objects.values()) e.climate?.label.allow(view === 'outside' || e.floorId === view);
+    },
+    // does the object have a bubble right now? (a linked heater's own temperature bubble counts)
+    has: (entry) => byEntry.has(entry) || !!entry.climate?.label.sprite.parent,
+    // would it have one if the user had not touched it?
+    byDefault(entry) {
+      const kept = entry.def.bubble;
+      delete entry.def.bubble;
+      const power = POWER_MODELS.includes(entry.def.model), id = entry.def.id;
+      const yes = power || !!deviceIcon(entry, links[id]);
+      if (kept !== undefined) entry.def.bubble = kept;
+      return yes;
+    },
+    set(entry, on) {
+      const b = byEntry.get(entry);
+      if (!on) {
+        if (b) {
+          b.label.sprite.removeFromParent();
+          bubbles.splice(bubbles.indexOf(b), 1);
+          byEntry.delete(entry);
+        }
+        entry.climate?.label.sprite.removeFromParent();
+      } else if (entry.climate && links[entry.def.id]) entry.object3d.add(entry.climate.label.sprite);
+      else make(entry);
+    },
+  };
+}
+
 export function attachBehaviors(objects, links, store, context = null) {
   world = context;
   const active = [];
@@ -412,6 +640,7 @@ export function attachBehaviors(objects, links, store, context = null) {
     if (entry.entityId) byEntity.set(entry.entityId, entry);
     kind.apply(entry, entry.entityId ? store.get(entry.entityId) : undefined);
   }
+  const bubbles = attachBubbles(objects, links, store);
   store.subscribe((entityId, state) => {
     const entry = byEntity.get(entityId);
     if (entry) entry.kind.apply(entry, state);
@@ -424,6 +653,7 @@ export function attachBehaviors(objects, links, store, context = null) {
   dusk(store.get(links._sun));
   store.subscribe((id, state) => id === links._sun && dusk(state));
   return {
+    bubbles,
     update(dt) {
       for (const e of active) e.kind.update?.(e, dt);
       updateLampPool(context?.scene, context?.focus);
