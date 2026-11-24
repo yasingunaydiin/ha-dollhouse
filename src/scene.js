@@ -40,6 +40,9 @@ export function createScene(container, view = {}, frontBearing = 180) {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.copy(target);
   controls.enableDamping = true;
+  controls.dampingFactor = 0.2; // default 0.05 felt floaty; higher = stops sooner
+  controls.rotateSpeed = 1.2;
+  controls.zoomSpeed = 1.2;
   controls.maxPolarAngle = Math.PI / 2.15;
   controls.minZoom = 0.7;
   controls.maxZoom = 6;
