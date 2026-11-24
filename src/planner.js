@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { createModel } from './models/registry.js';
 import { createCatalog } from './catalog.js';
 import { saveEdit, saveLink } from './house-file.js';
-import { POWER_MODELS } from './models/power.js';
+import { POWER_MODELS, portsOf } from './models/power.js';
 import { hasBubbleByDefault } from './behaviors.js';
 
 const GRID = 0.05; // snap, metres
@@ -329,6 +329,13 @@ export function createPlanner({ house, say, links = {}, entities = () => [] }) {
   }
 
   // ── properties panel
+  // the "Connected devices" list of a socket or power strip: electronic things on this floor to plug into it
+  const connectedList = (sock) => {
+    const list = objects().filter((d) => d.id !== sock.id && d.model !== 'wall_socket' && d.id !== sock.plug
+      && (d.plug === sock.id || POWER_MODELS.includes(d.model) || d.bubble || links[d.id] || hasBubbleByDefault(d, links[d.id])));
+    const used = list.filter((d) => d.plug === sock.id).length;
+    return `<div class="connected"><small>Connected devices (${used}/${portsOf(sock)})</small>${list.length ? list.map((d) => `<label class="check"><input data-prop="conn" data-id="${esc(d.id)}" type="checkbox" ${d.plug === sock.id ? 'checked' : ''}/> ${esc(d.id)}${d.plug && d.plug !== sock.id ? ` <small>(now in ${esc(d.plug)})</small>` : ''}</label>`).join('') : '<p>No devices on this floor.</p>'}</div>`;
+  };
   const field = (label, prop, value, attrs = 'type="number" step="0.05"') =>
     `<label><small>${label}</small><input data-prop="${prop}" ${attrs} value="${value ?? ''}"/></label>`;
 
@@ -381,6 +388,7 @@ export function createPlanner({ house, say, links = {}, entities = () => [] }) {
         <label><small>Plugged into</small><select data-prop="plug"><option value="">(nothing)</option>${
           house.floors.flatMap((f) => f.objects ?? []).filter((q) => POWER_MODELS.includes(q.model) && q.id !== o.id)
             .map((q) => `<option value="${esc(q.id)}"${q.id === o.plug ? ' selected' : ''}>${esc(q.id)}</option>`).join('')}</select></label>
+        ${POWER_MODELS.includes(o.model) ? connectedList(o) : ''}
         ${o.stretch ? '<button class="reset-size">Original size</button>' : ''}
         <button class="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button>
         <button class="delete">Delete</button>`;
@@ -458,6 +466,10 @@ export function createPlanner({ house, say, links = {}, entities = () => [] }) {
         if (prop === 'z') setXZ(o, x, num ?? z);
         if (prop === 'rot') set(o, 'rot', num || undefined);
         if (prop === 'plug') set(o, 'plug', raw || undefined);
+        if (prop === 'conn') { // a device ticked in a socket's "Connected devices" list
+          const d = objects().find((q) => q.id === e.target.dataset.id);
+          if (d) set(d, 'plug', raw ? o.id : undefined);
+        }
         if (prop === 'y') o.at = num > 0 ? [x, round(num), z] : [x, z];
         if ('wdh'.includes(prop) && num > 0) {
           const n = sizeOf(o), v = [...stretchOf(o)];

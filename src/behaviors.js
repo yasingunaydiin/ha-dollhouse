@@ -575,8 +575,8 @@ export const hasBubbleByDefault = (def, entityId) => POWER_MODELS.includes(def.m
 
 function attachBubbles(objects, links, store) {
   const bubbles = [];
-  const plugged = new Map(); // socket id -> entries plugged into it
-  for (const e of objects.values()) if (e.def.plug) plugged.set(e.def.plug, [...(plugged.get(e.def.plug) ?? []), e]);
+  // socket id -> entries plugged into it (read fresh: the plan editor changes it)
+  const plugged = { get: (id) => [...objects.values()].filter((e) => e.def.plug === id) };
   const draw = (b) => {
     if (b.power) {
       const watts = (function sum(id) {

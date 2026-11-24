@@ -169,6 +169,8 @@ if (embedded) {
       Object.assign(entry.def, { at: def.at, rot: def.rot, stretch: def.stretch });
       if (def.rot === undefined) delete entry.def.rot;
       if (def.stretch === undefined) delete entry.def.stretch;
+      if (def.plug === undefined) delete entry.def.plug;
+      else entry.def.plug = def.plug;
     }
     f.objects = objects;
   });

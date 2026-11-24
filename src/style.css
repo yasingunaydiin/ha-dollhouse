@@ -368,3 +368,7 @@ body.embed #furniture { display: none; }
 #furniture .cat-star.on { color: #f4b23e; }
 #furniture .cat-empty { color: #7f8db5; }
 #furniture .cat-tip { display: none; }
+
+/* a socket's list of connected devices */
+#planner .props .connected { display: flex; flex-direction: column; gap: 6px; max-height: 190px; overflow: auto; margin: 4px 0 8px; }
+#planner .props .connected .check { font-size: 13px; }
