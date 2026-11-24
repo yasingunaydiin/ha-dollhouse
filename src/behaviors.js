@@ -246,7 +246,10 @@ const kinds = {
       const heating = ['heat', 'auto'].includes(state?.state) && !['idle', 'off'].includes(a.hvac_action);
       entry.climate.target = heating ? 1 : 0;
       const t = a.current_temperature;
-      entry.climate.label.set(t == null ? '' : `${Math.round(t * 10) / 10}°`, heating);
+      // the radiator icon with the room temperature next to it
+      const glow = '#ff8a3c';
+      if (t == null) entry.climate.label.icon('radiator', heating, glow);
+      else entry.climate.label.iconText('radiator', `${Math.round(t * 10) / 10}°`, heating, glow);
     },
     update(entry, dt) {
       const c = entry.climate;
@@ -560,6 +563,8 @@ function deviceIcon(entry, entityId) {
   if (kind === 'media_player') return 'monitor';
   if (kind === 'camera') return 'camera';
   if (kind === 'climate') return 'radiator';
+  // an object named like a heater or radiator is one, whatever its model (a tower fan used as the bedroom heater)
+  if (/(^|_)(heater|radiator)(_|\d|$)/.test(entry.def.id ?? '')) return 'radiator';
   const found = DEVICE_ICON.find(([re]) => re.test(model));
   if (!found || (HOLDS_DEVICES.test(model) && found[1] !== 'bulb')) return null;
   return found[1];

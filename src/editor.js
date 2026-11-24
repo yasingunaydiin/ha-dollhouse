@@ -2,8 +2,8 @@
 // saved straight into the house file (data/house.yaml) through the server, and can be undone
 // (Ctrl/Cmd+Z) and redone (Ctrl/Cmd+Shift+Z or Ctrl+Y) until the page reloads.
 import * as THREE from 'three';
-import { listModels } from './models/registry.js';
 import { saveEdit } from './house-file.js';
+import { createCatalog } from './catalog.js';
 
 const SNAP = 0.05; // metres
 const ROT_STEP = 45; // degrees
@@ -15,7 +15,7 @@ export function createEditor({ world, built, house, container, say, bubbles }) {
   const hitPoint = new THREE.Vector3();
   const panel = document.getElementById('editor');
   const nameEl = panel.querySelector('.name');
-  const modelSelect = panel.querySelector('select');
+  const furniture = document.getElementById('furniture');
   const selection = new THREE.BoxHelper(new THREE.Object3D(), '#1f9fd0');
   selection.visible = false;
   world.scene.add(selection);
@@ -24,7 +24,13 @@ export function createEditor({ world, built, house, container, say, bubbles }) {
   let selected = null; // entry from built.objects
   let drag = null;
 
-  for (const m of listModels().sort()) modelSelect.add(new Option(m.replaceAll('_', ' '), m));
+  // the furniture sidebar: the same catalog as the plan editor, open while editing
+  const showFurniture = (on) => {
+    furniture.hidden = !on || !enabled;
+    document.body.classList.toggle('furniture-open', !furniture.hidden);
+  };
+  createCatalog({ container: furniture, onPick: (model) => add(model) });
+  furniture.addEventListener('close', () => showFurniture(false));
 
   async function save(edit) {
     try {
@@ -232,8 +238,7 @@ export function createEditor({ world, built, house, container, say, bubbles }) {
     say(`Removed ${def.id}`);
   }
 
-  async function add() {
-    const model = modelSelect.value;
+  async function add(model) {
     const floor = built.floors.find((f) => f.id === built.view) ?? built.floors[0];
     let n = 1;
     while (built.objects.has(`${model}_${n}`)) n++;
@@ -298,7 +303,7 @@ export function createEditor({ world, built, house, container, say, bubbles }) {
   panel.querySelector('.rot-left').addEventListener('click', () => rotate(1));
   panel.querySelector('.rot-right').addEventListener('click', () => rotate(-1));
   panel.querySelector('.delete').addEventListener('click', remove);
-  panel.querySelector('.add').addEventListener('click', add);
+  panel.querySelector('.add').addEventListener('click', () => showFurniture(furniture.hidden));
   undoButton.addEventListener('click', undo);
   redoButton.addEventListener('click', redo);
   refreshHistory();
@@ -308,6 +313,7 @@ export function createEditor({ world, built, house, container, say, bubbles }) {
     setEnabled(on) {
       enabled = on;
       panel.hidden = !on;
+      showFurniture(on);
       if (!on) select(null);
       else select(null);
       canvas.style.cursor = on ? 'default' : 'grab';

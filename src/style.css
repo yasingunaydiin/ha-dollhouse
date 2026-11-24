@@ -340,3 +340,31 @@ body.embed #roompanel { display: none; }
 .balloon::before { content: ''; position: absolute; left: calc(100% + 21px); top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: #2fd2ff; box-shadow: 0 0 0 3px rgba(47, 210, 255, 0.3); z-index: 1; }
 
 #editor .bubble-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; cursor: pointer; }
+
+/* Edit mode's furniture sidebar: the same catalog as the plan editor's "Add furniture" */
+#furniture { position: fixed; z-index: 30; top: 0; right: 0; bottom: 0; width: 340px; box-sizing: border-box; padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 10px; background: #0d1426; color: #e8eefc; border-left: 1px solid #1c2748; font: 14px system-ui, sans-serif; }
+#furniture[hidden] { display: none; }
+#furniture button, #furniture input { font: inherit; color: inherit; background: #16213f; border: 1px solid #263359; border-radius: 999px; padding: 6px 13px; cursor: pointer; }
+#furniture button.active { background: #38c6f4; border-color: #38c6f4; color: #06202c; font-weight: 700; }
+body.furniture-open #editor { right: 356px; top: 84px; }
+body.embed #furniture { display: none; }
+#furniture .cat-head { display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
+#furniture .cat-close { font-size: 18px; line-height: 1; padding: 4px 10px; }
+#furniture .cat-tip { margin: 0; color: #7f8db5; font-size: 12px; }
+#furniture .cat-search { border-radius: 12px; padding: 11px 14px; width: 100%; box-sizing: border-box; background: #111a33; cursor: text; }
+#furniture .cat-chips, #planner .cat-flags { display: flex; flex-wrap: wrap; gap: 6px; }
+#furniture .cat-chips button, #planner .cat-flags button { border-radius: 999px; padding: 5px 12px; background: #111a33; font-size: 12px; }
+#furniture .cat-chips button.active, #planner .cat-flags button.active { background: #38c6f4; border-color: #38c6f4; color: #06202c; font-weight: 700; }
+#furniture .cat-section { display: flex; justify-content: space-between; margin: 10px 2px 2px; font-weight: 700; color: #dfe7ff; }
+#furniture .cat-section span:last-child { color: #7f8db5; font-weight: 400; }
+#furniture .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#furniture .cat-card { position: relative; background: #111a33; border: 1px solid #1f2c52; border-radius: 12px; padding: 8px; cursor: pointer; }
+#furniture .cat-card:hover { border-color: #38c6f4; background: #14213f; }
+#furniture .cat-pic { height: 84px; display: grid; place-items: center; border-radius: 8px; background: radial-gradient(circle at 50% 60%, #1b2a55, #0f1730); overflow: hidden; }
+#furniture .cat-pic img { max-width: 100%; max-height: 100%; object-fit: contain; }
+#furniture .cat-name { margin-top: 6px; font-weight: 600; overflow-wrap: anywhere; }
+#furniture .cat-dim { color: #7f8db5; font-size: 11px; min-height: 14px; }
+#furniture .cat-star { position: absolute; top: 6px; right: 6px; z-index: 1; border: 0; background: none; padding: 2px 5px; font-size: 16px; color: #7f8db5; }
+#furniture .cat-star.on { color: #f4b23e; }
+#furniture .cat-empty { color: #7f8db5; }
+#furniture .cat-tip { display: none; }
