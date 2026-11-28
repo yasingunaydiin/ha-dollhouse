@@ -612,7 +612,7 @@ function attachBubbles(objects, links, store) {
     label.sprite.position.y = size.y / entry.object3d.scale.y + 0.3 * small;
     entry.object3d.add(label.sprite);
     const b = { entry, label, power, glyph, entityId: links[id] };
-    label.allow(shownView === 'outside' || entry.floorId === shownView);
+    label.allow(entry.floorId === shownView);
     bubbles.push(b);
     byEntry.set(entry, b);
     draw(b);
@@ -622,11 +622,11 @@ function attachBubbles(objects, links, store) {
     for (const b of bubbles) if (b.power || b.entityId === entityId) draw(b);
   });
   return {
-    // with a floor open, only that floor's bubbles show; in the whole-house view all of them do
+    // with a floor open, only that floor's bubbles show; in the whole-house view none do (they would float on the outer walls)
     showFloor(view) {
       shownView = view;
-      for (const b of bubbles) b.label.allow(view === 'outside' || b.entry.floorId === view);
-      for (const e of objects.values()) e.climate?.label.allow(view === 'outside' || e.floorId === view);
+      for (const b of bubbles) b.label.allow(b.entry.floorId === view);
+      for (const e of objects.values()) e.climate?.label.allow(e.floorId === view);
     },
     // does the object have a bubble right now? (a linked heater's own temperature bubble counts)
     has: (entry) => byEntry.has(entry) || !!entry.climate?.label.sprite.parent,
