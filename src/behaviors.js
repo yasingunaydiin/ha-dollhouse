@@ -682,6 +682,8 @@ export function attachBehaviors(objects, links, store, context = null) {
   store.subscribe((id, state) => id === links._sun && dusk(state));
   return {
     bubbles,
+    // true while something moves all the time (a pet): the scene never goes fully still
+    get ambient() { return active.some((e) => e.kind === kinds.pet); },
     update(dt) {
       for (const e of active) e.kind.update?.(e, dt);
       updateLampPool(context?.scene, context?.focus);

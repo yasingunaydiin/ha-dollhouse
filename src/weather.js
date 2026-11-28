@@ -136,6 +136,8 @@ export function createWeather({ scene, world, houseBounds }) {
 
   return {
     get condition() { return condition; },
+    // rain, snow or lightning is animating, so the scene must keep drawing
+    get active() { return rain.visible || snow.visible || bolt > 0; },
     set,
     fromHa(state) { set(HA_CONDITIONS[state] ?? 'clear'); },
     fromWmo(code) { const name = fromWmo(code); set(name); return name; },

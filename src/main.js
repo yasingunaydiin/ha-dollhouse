@@ -535,14 +535,23 @@ function updateRoomPills() {
 
 let bubbleView = null; // the view the icon bubbles were last filtered for
 // --- loop
+// Draw on demand (see scene.js). Anything that can change the picture without moving
+// the camera lands here: pointer and keyboard input (editing), and device state
+// changes (lights fade over a couple of seconds, labels change).
+for (const type of ['pointerdown', 'pointerup', 'keydown', 'click', 'change', 'input']) window.addEventListener(type, () => world.invalidate(true, 3), true);
+window.addEventListener('pointermove', () => world.invalidate(false), true);
+window.addEventListener('wheel', () => world.invalidate(false), { capture: true, passive: true });
+store.subscribe(() => world.invalidate(false, 3));
 const clock = new THREE.Clock();
 world.renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.1);
   updateZoomView();
-  built.update(world.cameraDir, dt);
+  if (built.update(world.cameraDir, dt)) world.invalidate();
   behaviors.update(dt);
+  world.setAmbient(behaviors.ambient);
   editor.update();
   weather.update(dt, clock.elapsedTime);
+  if (weather.active) world.invalidate(false);
   world.update(dt);
   // overlays go last, so they use the camera as just drawn (no trailing behind the house)
   if (built.view !== bubbleView) behaviors.bubbles.showFloor((bubbleView = built.view));

@@ -397,33 +397,42 @@ export async function buildHouse(house) {
     return k;
   }
 
-  // called every frame: eases floors and walls towards where they should be
+  // called every frame: eases floors and walls towards where they should be.
+  // Returns true when anything moved or showed/hid (so the scene must be redrawn).
   function update(cameraDir, dt) {
+    let changed = false;
     for (const f of floors) {
       const key = layoutKey(f);
       if (key !== f.layoutKey) {
         f.layoutKey = key;
         raiseWalls(f);
+        changed = true;
       }
       // a raised piece only helps behind its object; between it and the camera it would hide it
       for (const wall of f.group.children) {
         const rise = wall.userData.rise;
         if (!rise) continue;
-        for (const piece of rise.pieces) piece.visible = -piece.userData.side * rise.across.dot(cameraDir) <= 0.05;
+        for (const piece of rise.pieces) {
+          const show = -piece.userData.side * rise.across.dot(cameraDir) <= 0.05;
+          if (piece.visible !== show) { piece.visible = show; changed = true; }
+        }
       }
       if (f.offset !== f.offsetTarget) {
         f.offset = THREE.MathUtils.damp(f.offset, f.offsetTarget, 5, dt);
         if (Math.abs(f.offset - f.offsetTarget) < 0.01) f.offset = f.offsetTarget;
         place(f);
+        changed = true;
       }
       for (const cut of f.cutaways) {
         cut.target = f.open && cut.normal.dot(cameraDir) > 0.05 ? cut.min : 1;
         if (cut.level === cut.target) continue;
+        changed = true;
         cut.level = THREE.MathUtils.damp(cut.level, cut.target, 9, dt);
         if (Math.abs(cut.level - cut.target) < 0.002) cut.level = cut.target;
         cut.full.scale.y = cut.level;
       }
     }
+    return changed;
   }
 
   // jump straight to the end of any running animation

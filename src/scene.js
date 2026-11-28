@@ -20,6 +20,9 @@ export function createScene(container, view = {}, frontBearing = 180) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  // The shadow map is only redrawn when something that casts a shadow changed (see invalidate)
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   container.appendChild(renderer.domElement);
@@ -47,6 +50,7 @@ export function createScene(container, view = {}, frontBearing = 180) {
   controls.minZoom = 0.7;
   controls.maxZoom = 6;
   controls.update();
+  controls.addEventListener('change', () => (needsRender = true));
 
   const sky = new THREE.HemisphereLight(DAY.skyColor, DAY.groundColor, DAY.sky);
   scene.add(sky);
@@ -79,7 +83,19 @@ export function createScene(container, view = {}, frontBearing = 180) {
     camera.top = size / 2;
     camera.bottom = -size / 2;
     camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
+    renderer.setSize(w, h); // clears the canvas, so draw again
+    needsRender = true;
+  }
+  // Render on demand: a frame is only drawn when something changed. Anything that
+  // changes what is on screen calls invalidate(); shadows = true also redraws the
+  // shadow map (needed when a shadow caster, the sun or a floor moved).
+  let needsRender = true, needsShadow = true, keepAlive = 0, shadowKeep = 0, ambient = false, ambientTime = 0, ambientShadow = 0;
+  let lastCloud = -1, lastFlash = -1;
+  function invalidate(shadows = true, seconds = 0) {
+    needsRender = true;
+    if (shadows) needsShadow = true;
+    keepAlive = Math.max(keepAlive, seconds);
+    if (shadows) shadowKeep = Math.max(shadowKeep, seconds);
   }
   window.addEventListener('resize', resize);
   resize();
@@ -107,6 +123,9 @@ export function createScene(container, view = {}, frontBearing = 180) {
 
   return {
     renderer, scene, camera, controls,
+    invalidate,
+    // something is always gently moving (a pet): draw at a relaxed 30 fps instead of 60
+    setAmbient(on) { ambient = on; },
     setCloud(c) { cloud = c; },
     setFlash(f) { flash = f; },
     // Sun position as Home Assistant reports it (degrees). Below the horizon
@@ -137,6 +156,7 @@ export function createScene(container, view = {}, frontBearing = 180) {
       scene.background = null;
       renderer.setClearColor(0x000000, 0);
       renderer.setSize(width, height, false);
+      renderer.shadowMap.needsUpdate = true;
       renderer.render(scene, cam);
       const url = renderer.domElement.toDataURL('image/png');
       scene.background = background;
@@ -173,7 +193,9 @@ export function createScene(container, view = {}, frontBearing = 180) {
         camera.zoom = Math.abs(zoomGoal - camera.zoom) < 0.003 ? zoomGoal : THREE.MathUtils.damp(camera.zoom, zoomGoal, 5, dt);
         camera.updateProjectionMatrix();
         if (camera.zoom === zoomGoal) zoomGoal = null;
+        needsRender = true;
       }
+      if (heightGoal !== null || panGoal) needsRender = true;
       controls.update();
       if (Math.abs(night - nightTarget) > 1e-3) {
         night = THREE.MathUtils.damp(night, nightTarget, 3, dt);
@@ -182,6 +204,7 @@ export function createScene(container, view = {}, frontBearing = 180) {
         sky.color.lerpColors(DAY.skyColor, NIGHT.skyColor, night);
         sky.groundColor.lerpColors(DAY.groundColor, NIGHT.groundColor, night);
         document.body.classList.toggle('night', night > 0.5);
+        needsRender = true;
       }
       if (!sky_.settled) {
         const k = 1 - Math.exp(-3 * dt);
@@ -189,7 +212,20 @@ export function createScene(container, view = {}, frontBearing = 180) {
         sun.intensity += (sky_.intensity - sun.intensity) * k;
         sun.color.lerp(sky_.color, k);
         sky_.settled = sun.position.distanceTo(sky_.dir.clone().multiplyScalar(45)) < 0.02 && Math.abs(sun.intensity - sky_.intensity) < 0.005;
+        needsRender = needsShadow = true;
       }
+      if (cloud !== lastCloud || flash !== lastFlash) { lastCloud = cloud; lastFlash = flash; needsRender = true; }
+      if (keepAlive > 0) { keepAlive -= dt; needsRender = true; }
+      if (shadowKeep > 0) { shadowKeep -= dt; needsShadow = true; }
+      if (ambient) {
+        ambientTime += dt;
+        ambientShadow += dt;
+        if (ambientTime >= 1 / 32) { ambientTime = 0; needsRender = true; }
+        if (ambientShadow >= 0.1) { ambientShadow = 0; needsShadow = true; }
+      }
+      if (!needsRender) return;
+      needsRender = false;
+      if (needsShadow) { renderer.shadowMap.needsUpdate = true; needsShadow = false; }
       // overcast sky: weaker sun (so fainter shadows), a little more ambient light
       const dim = 1 - 0.7 * cloud;
       const base = sun.intensity;
